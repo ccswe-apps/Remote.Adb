@@ -1,6 +1,6 @@
 # Remote.Adb
 
-[![CI](https://img.shields.io/github/actions/workflow/status/ccswe-apps/Remote.Adb/ci.yml?branch=master&label=build)](https://github.com/ccswe-apps/Remote.Adb/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/ccswe-apps/Remote.Adb/dotnet-build-app.yml?branch=master&label=build)](https://github.com/ccswe-apps/Remote.Adb/actions/workflows/dotnet-build-app.yml)
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/ccswe-apps/Remote.Adb/codeql.yml?branch=master&label=codeql)](https://github.com/ccswe-apps/Remote.Adb/actions/workflows/codeql.yml)
 [![Release](https://img.shields.io/github/v/release/ccswe-apps/Remote.Adb?display_name=tag&sort=semver)](https://github.com/ccswe-apps/Remote.Adb/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.md)
@@ -172,7 +172,7 @@ dotnet tool run nbgv tag      # creates v<major>.<minor>.<patch> for HEAD
 git push origin <tag>          # e.g. git push origin v0.1.18
 ```
 
-Pushing the `v*` tag triggers `.github/workflows/release.yml`, which publishes one framework-dependent archive
+Pushing the `v*` tag triggers `.github/workflows/dotnet-release-app.yml`, which publishes one framework-dependent archive
 per RID (`win-x64`/`linux-x64`/`osx-x64`/`osx-arm64`), each containing both the Desktop and Console, and creates
 a GitHub Release with auto-generated notes. Bump `version.json` (and commit) when you want a new major/minor.
 
