@@ -1,8 +1,8 @@
 # Remote.Adb
 
-[![CI](https://img.shields.io/github/actions/workflow/status/CoryCharlton/Remote.Adb/ci.yml?branch=master&label=build)](https://github.com/CoryCharlton/Remote.Adb/actions/workflows/ci.yml)
-[![CodeQL](https://img.shields.io/github/actions/workflow/status/CoryCharlton/Remote.Adb/codeql.yml?branch=master&label=codeql)](https://github.com/CoryCharlton/Remote.Adb/actions/workflows/codeql.yml)
-[![Release](https://img.shields.io/github/v/release/CoryCharlton/Remote.Adb?display_name=tag&sort=semver)](https://github.com/CoryCharlton/Remote.Adb/releases/latest)
+[![CI](https://img.shields.io/github/actions/workflow/status/ccswe-apps/Remote.Adb/ci.yml?branch=master&label=build)](https://github.com/ccswe-apps/Remote.Adb/actions/workflows/ci.yml)
+[![CodeQL](https://img.shields.io/github/actions/workflow/status/ccswe-apps/Remote.Adb/codeql.yml?branch=master&label=codeql)](https://github.com/ccswe-apps/Remote.Adb/actions/workflows/codeql.yml)
+[![Release](https://img.shields.io/github/v/release/ccswe-apps/Remote.Adb?display_name=tag&sort=semver)](https://github.com/ccswe-apps/Remote.Adb/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.md)
 
 A cross-platform desktop app (with a matching console) that bridges Android development between your
@@ -57,12 +57,12 @@ typically your **local workstation** (Windows in my setup, though the app is cro
 Download the latest build for your platform — each archive contains both the desktop app and the console. The
 builds are framework-dependent, so you'll need the [.NET runtime](https://dotnet.microsoft.com/download) installed:
 
-- **Windows (x64):** [`Remote.Adb-win-x64.zip`](https://github.com/CoryCharlton/Remote.Adb/releases/latest/download/Remote.Adb-win-x64.zip)
-- **Linux (x64):** [`Remote.Adb-linux-x64.tar.gz`](https://github.com/CoryCharlton/Remote.Adb/releases/latest/download/Remote.Adb-linux-x64.tar.gz)
-- **macOS (Apple Silicon):** [`Remote.Adb-osx-arm64.tar.gz`](https://github.com/CoryCharlton/Remote.Adb/releases/latest/download/Remote.Adb-osx-arm64.tar.gz)
-- **macOS (Intel):** [`Remote.Adb-osx-x64.tar.gz`](https://github.com/CoryCharlton/Remote.Adb/releases/latest/download/Remote.Adb-osx-x64.tar.gz)
+- **Windows (x64):** [`Remote.Adb-win-x64.zip`](https://github.com/ccswe-apps/Remote.Adb/releases/latest/download/Remote.Adb-win-x64.zip)
+- **Linux (x64):** [`Remote.Adb-linux-x64.tar.gz`](https://github.com/ccswe-apps/Remote.Adb/releases/latest/download/Remote.Adb-linux-x64.tar.gz)
+- **macOS (Apple Silicon):** [`Remote.Adb-osx-arm64.tar.gz`](https://github.com/ccswe-apps/Remote.Adb/releases/latest/download/Remote.Adb-osx-arm64.tar.gz)
+- **macOS (Intel):** [`Remote.Adb-osx-x64.tar.gz`](https://github.com/ccswe-apps/Remote.Adb/releases/latest/download/Remote.Adb-osx-x64.tar.gz)
 
-(Or browse the [Releases page](https://github.com/CoryCharlton/Remote.Adb/releases).) Or build from source:
+(Or browse the [Releases page](https://github.com/ccswe-apps/Remote.Adb/releases).) Or build from source:
 
 ```bash
 # Build (Release)
