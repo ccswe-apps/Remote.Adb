@@ -1,7 +1,6 @@
 # Remote.Adb
 
 [![CI](https://img.shields.io/github/actions/workflow/status/ccswe-apps/Remote.Adb/dotnet-build-app.yml?branch=master&label=build)](https://github.com/ccswe-apps/Remote.Adb/actions/workflows/dotnet-build-app.yml)
-[![CodeQL](https://img.shields.io/github/actions/workflow/status/ccswe-apps/Remote.Adb/codeql.yml?branch=master&label=codeql)](https://github.com/ccswe-apps/Remote.Adb/actions/workflows/codeql.yml)
 [![Release](https://img.shields.io/github/v/release/ccswe-apps/Remote.Adb?display_name=tag&sort=semver)](https://github.com/ccswe-apps/Remote.Adb/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.md)
 
