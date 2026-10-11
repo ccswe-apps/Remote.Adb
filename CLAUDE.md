@@ -61,6 +61,8 @@ The SDK is pinned via the root `global.json`. `src/Directory.Build.props` applie
 
 Package versions are centrally managed via **Central Package Management** (`src/Directory.Packages.props`, `ManagePackageVersionsCentrally=true`). To add or update a dependency, add a `<PackageVersion Include="X" Version="N" />` in `Directory.Packages.props` and a version-less `<PackageReference Include="X" />` in the project (or `Directory.Build.props` for solution-wide refs). Never put `Version=` on a `<PackageReference>` — it errors with NU1008.
 
+When a CCSWE.Avalonia.* library publishes, `.github/workflows/update-dependencies.yml` (ccswe-apps/actions `dotnet-update-dependencies.yml`) opens an andy PR bumping its `<PackageVersion>`; non-major bumps auto-merge. Dependabot excludes `CCSWE.*` from its cooldown and remains the fallback.
+
 ## Architecture
 
 Projects in `src/Remote.Adb.slnx`:
