@@ -194,7 +194,7 @@ The solution is `src/Remote.Adb.slnx`:
 - **`Remote.Adb.Core`** — class library with all domain logic (models, services, DI registration). Both front-ends depend on it; no UI dependency.
 - **`Remote.Adb.Desktop`** — the Avalonia desktop GUI (`WinExe`).
 - **`Remote.Adb.Console`** — the command-line front-end.
-- **`Remote.Adb.Core.UnitTests`** / **`Remote.Adb.Desktop.UnitTests`** — NUnit tests (plain NUnit + Moq; UI types sit behind seams so no Avalonia.Headless is needed).
+- **`Remote.Adb.Core.UnitTests`** / **`Remote.Adb.Desktop.UnitTests`** / **`Remote.Adb.Console.UnitTests`** — NUnit tests (plain NUnit + Moq; UI types sit behind seams so no Avalonia.Headless is needed).
 
 ```bash
 dotnet test src/Remote.Adb.slnx

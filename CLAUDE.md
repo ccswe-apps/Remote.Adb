@@ -90,7 +90,7 @@ Projects in `src/Remote.Adb.slnx`:
 - **`Remote.Adb.Core`** — class library holding all domain logic: models, services (process execution, Android SDK location, emulator management, adb devices, wireless connect/pair (`Adb/Wireless/`), SSH tunnel), and the `AddRemoteAdbCore()` DI registration extension. Both front-ends depend on it; it has no UI dependency.
 - **`Remote.Adb.Desktop`** — the Avalonia desktop GUI (`WinExe`), MVVM.
 - **`Remote.Adb.Console`** — the CLI front-end exposing the same Core functionality.
-- **`Remote.Adb.Core.UnitTests`** / **`Remote.Adb.Desktop.UnitTests`** — NUnit tests for Core / Desktop.
+- **`Remote.Adb.Core.UnitTests`** / **`Remote.Adb.Desktop.UnitTests`** / **`Remote.Adb.Console.UnitTests`** — NUnit tests for Core / Desktop / Console.
 - **`Remote.Adb.Testing`** — shared test helpers (fakes, mocks, `FakeTimeProvider`) referenced by the test projects.
 
 Both front-ends compose a `Microsoft.Extensions.DependencyInjection` service provider and call `AddRemoteAdbCore()` to register the shared services. Keep logic in Core; the GUI and CLI are thin shells over it.

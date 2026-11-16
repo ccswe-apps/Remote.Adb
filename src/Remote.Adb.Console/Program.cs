@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Remote.Adb.Console;
 using Remote.Adb.Core;
 using Remote.Adb.Core.Adb.Wireless;
 using Remote.Adb.Core.Common;
@@ -8,19 +9,22 @@ using Remote.Adb.Core.Settings;
 using Remote.Adb.Core.Tunnel;
 
 // --verbose (anywhere on the command line) echoes every tool run and its output; strip it before dispatch.
-const string VerboseFlag = "--verbose";
-var verbose = args.Contains(VerboseFlag);
-args = args.Where(argument => argument != VerboseFlag).ToArray();
+args = ConsoleArguments.StripVerbose(args, out var verbose);
 
 var services = new ServiceCollection();
-services.AddLogging(builder => builder.AddSimpleConsole(options => options.SingleLine = true).SetMinimumLevel(verbose ? LogLevel.Debug : LogLevel.Warning));
+services.AddLogging(builder => builder
+    .AddSimpleConsole(options => options.SingleLine = true)
+    .SetMinimumLevel(verbose ? LogLevel.Debug : LogLevel.Warning)
+    // The tunnel command prints every status change itself; its Faulted warning would print the same thing twice.
+    .AddFilter(typeof(TunnelService).FullName, verbose ? LogLevel.Debug : LogLevel.Error));
 services.AddRemoteAdbCore();
 
-using var provider = services.BuildServiceProvider();
+// Async disposal: the tunnel service is IAsyncDisposable only, which a synchronous Dispose rejects.
+await using var provider = services.BuildServiceProvider();
 
 if (args.Length == 0)
 {
-    PrintUsage();
+    PrintUsage(Console.Error);
     return 1;
 }
 
@@ -33,29 +37,39 @@ try
             provider.GetRequiredService<IEmulatorService>(),
             provider.GetRequiredService<IAvdConfigStore>(),
             provider.GetRequiredService<IAvdProvisioningService>()),
+        "help" or "--help" or "-h" => Help(),
         "tunnel" => await HandleTunnelAsync(
             args[1..],
             provider.GetRequiredService<ITunnelService>(),
             provider.GetRequiredService<ISettingsService>()),
-        "wireless" => await HandleWirelessAsync(args[1..], provider.GetRequiredService<IWirelessAdbService>()),
+        "wireless" => await HandleWirelessAsync(
+            args[1..],
+            provider.GetRequiredService<IWirelessAdbService>(),
+            provider.GetRequiredService<ISettingsService>()),
         _ => Unknown(args[0]),
     };
 }
 catch (ProcessLaunchException exception)
 {
-    Console.Error.WriteLine(exception.Message);
+    return Fail(exception.Message);
+}
+
+static int Fail(string message)
+{
+    Console.Error.WriteLine(message);
     return 1;
 }
 
 static async Task<int> HandleEmulatorAsync(string[] args, IEmulatorService emulators, IAvdConfigStore configStore, IAvdProvisioningService provisioning)
 {
     var command = args.Length > 0 ? args[0] : string.Empty;
+    var operand = ConsoleArguments.Operand(args);
 
     switch (command)
     {
         case "list":
+        {
             var devices = await emulators.ListAsync();
-
             if (devices.Count == 0)
             {
                 Console.WriteLine("No AVDs found.");
@@ -70,78 +84,73 @@ static async Task<int> HandleEmulatorAsync(string[] args, IEmulatorService emula
             }
 
             return 0;
-
+        }
         case "start":
-            if (args.Length < 2)
+        {
+            if (operand is null)
             {
-                Console.Error.WriteLine("Usage: emulator start <avd-name>");
-                return 1;
+                return Fail("Usage: emulator start <avd-name>");
             }
 
-            await emulators.StartAsync(args[1]);
-            Console.WriteLine($"Starting {args[1]}...");
+            await emulators.StartAsync(operand);
+            Console.WriteLine($"Starting {operand}...");
             return 0;
-
+        }
         case "stop":
-            if (args.Length < 2)
+        {
+            if (operand is null)
             {
-                Console.Error.WriteLine("Usage: emulator stop <serial>");
-                return 1;
+                return Fail("Usage: emulator stop <serial>");
             }
 
-            await emulators.StopAsync(args[1]);
-            Console.WriteLine($"Stopped {args[1]}.");
-            return 0;
-
+            var result = await emulators.StopAsync(operand);
+            return Report(result.Success, result.Success ? $"Stopped {operand}." : $"Could not stop {operand}: {result.Error}");
+        }
         case "info":
-            if (args.Length < 2)
+        {
+            if (operand is null)
             {
-                Console.Error.WriteLine("Usage: emulator info <avd-name>");
-                return 1;
+                return Fail("Usage: emulator info <avd-name>");
             }
 
-            var configuration = configStore.Read(args[1]);
+            var configuration = configStore.Read(operand);
             if (configuration is null)
             {
-                Console.Error.WriteLine($"No AVD found with id '{args[1]}'.");
-                return 1;
+                return Fail($"No AVD found with id '{operand}'.");
             }
 
             PrintConfiguration(configuration);
             return 0;
-
+        }
         case "edit":
-            if (args.Length < 2)
+        {
+            if (operand is null)
             {
-                Console.Error.WriteLine("Usage: emulator edit <avd-name> --<key> <value> [--<key> <value>…]  (a bare --<key> clears it)");
-                return 1;
+                return Fail("Usage: emulator edit <avd-name> --<key> <value> [--<key> <value>…]  (a bare --<key> clears it; use --<key>=<value> for a value starting with --)");
             }
 
-            if (!TryParseEdits(args[2..], out var changes, out var removals, out var parseError))
+            if (!ConsoleArguments.TryParseEdits(args[2..], out var edits, out var parseError))
             {
-                Console.Error.WriteLine(parseError);
-                return 1;
+                return Fail(parseError!);
             }
 
-            if (changes.Count == 0 && removals.Count == 0)
+            if (edits!.IsEmpty)
             {
-                Console.Error.WriteLine("Nothing to change. Pass --<key> <value> to set, or a bare --<key> to clear.");
-                return 1;
+                return Fail("Nothing to change. Pass --<key> <value> to set, or a bare --<key> to clear.");
             }
 
-            var edited = configStore.Write(args[1], changes, removals);
+            var edited = configStore.Write(operand, edits.Changes, edits.Removals);
             if (edited is null)
             {
-                Console.Error.WriteLine($"No AVD found with id '{args[1]}'.");
-                return 1;
+                return Fail($"No AVD found with id '{operand}'.");
             }
 
             PrintConfiguration(edited);
             return 0;
-
+        }
         case "images":
+        {
             var images = await provisioning.ListInstalledImagesAsync();
-
             if (images.Count == 0)
             {
                 Console.WriteLine("No installed system images. Install one with the SDK manager.");
@@ -154,8 +163,9 @@ static async Task<int> HandleEmulatorAsync(string[] args, IEmulatorService emula
             }
 
             return 0;
-
+        }
         case "devices":
+        {
             foreach (var profile in await provisioning.ListDevicesAsync())
             {
                 var specs = profile.ScreenWidth is { } width && profile.ScreenHeight is { } height
@@ -167,184 +177,141 @@ static async Task<int> HandleEmulatorAsync(string[] args, IEmulatorService emula
             }
 
             return 0;
-
+        }
         case "create":
-            if (!TryParseCreate(args[1..], out var name, out var package, out var deviceId, out var overrides, out var createError))
+        {
+            if (!ConsoleArguments.TryParseCreate(args[1..], out var create, out var createError))
             {
-                Console.Error.WriteLine(createError);
-                return 1;
+                return Fail(createError!);
             }
 
-            var createResult = await provisioning.CreateAsync(name, package, deviceId);
+            var createResult = await provisioning.CreateAsync(create!.Name, create.Package, create.Device);
             if (!createResult.Success)
             {
-                Console.Error.WriteLine(createResult.Error ?? "avdmanager could not create the AVD. Check the SDK installation.");
-                return 1;
+                return Fail(createResult.Error ?? "avdmanager could not create the AVD. Check the SDK installation.");
             }
 
-            if (overrides.Count > 0)
+            if (create.Overrides.Count > 0)
             {
-                configStore.Write(name, overrides);
+                configStore.Write(create.Name, create.Overrides);
             }
 
-            Console.WriteLine($"Created {name}.");
-            var created = configStore.Read(name);
+            Console.WriteLine($"Created {create.Name}.");
+            var created = configStore.Read(create.Name);
             if (created is not null)
             {
                 PrintConfiguration(created);
             }
 
             return 0;
-
+        }
         case "delete":
-            if (args.Length < 2)
+        {
+            if (operand is null)
             {
-                Console.Error.WriteLine("Usage: emulator delete <avd-name>");
-                return 1;
+                return Fail("Usage: emulator delete <avd-name>");
             }
 
-            if (!await provisioning.DeleteAsync(args[1]))
-            {
-                Console.Error.WriteLine($"Could not delete '{args[1]}'.");
-                return 1;
-            }
-
-            Console.WriteLine($"Deleted {args[1]}.");
-            return 0;
-
+            var deleted = await provisioning.DeleteAsync(operand);
+            return Report(deleted, deleted ? $"Deleted {operand}." : $"Could not delete '{operand}'.");
+        }
         default:
-            Console.Error.WriteLine("Usage: emulator <list|info|edit|images|devices|create|delete|start|stop> …");
-            return 1;
+            return Fail("Usage: emulator <list|info|edit|images|devices|create|delete|start|stop> …");
     }
 }
 
-// Opens the reverse tunnel and blocks until Ctrl+C (or the tunnel drops) — keep the window open.
+// Opens the reverse tunnel and blocks until Ctrl+C (or the tunnel ends) — keep the window open.
 // The host falls back to the saved setting when omitted.
 static async Task<int> HandleTunnelAsync(string[] args, ITunnelService tunnel, ISettingsService settings)
 {
     var host = args.Length > 0 ? args[0] : settings.TunnelHost;
-
     if (string.IsNullOrWhiteSpace(host))
     {
-        Console.Error.WriteLine("Usage: tunnel [host]   (no host configured — pass one, or set it in the desktop app)");
-        return 1;
+        return Fail("Usage: tunnel [host]   (no host configured — pass one, or set it in the desktop app)");
     }
 
-    using var stop = new CancellationTokenSource();
+    using var cancel = new CancellationTokenSource();
 
-    tunnel.StatusChanged += (_, status) =>
+    // The first Ctrl+C closes the tunnel cleanly; a second one (if closing hangs) terminates as usual.
+    void OnCancelKeyPress(object? sender, ConsoleCancelEventArgs eventArgs)
     {
-        Console.WriteLine(status.Message is null ? $"[tunnel] {status.State}" : $"[tunnel] {status.State}: {status.Message}");
-
-        if (status.State is TunnelState.Faulted or TunnelState.Disconnected)
-        {
-            stop.Cancel();
-        }
-    };
-
-    Console.CancelKeyPress += (_, eventArgs) =>
-    {
-        eventArgs.Cancel = true;
-        stop.Cancel();
-    };
-
-    Console.WriteLine($"Opening reverse tunnel to {host}. Press Ctrl+C to close.");
-    await tunnel.ConnectAsync(host);
-
-    if (tunnel.Status.State != TunnelState.Faulted)
-    {
-        try
-        {
-            await Task.Delay(Timeout.Infinite, stop.Token);
-        }
-        catch (OperationCanceledException)
-        {
-        }
-
-        await tunnel.DisconnectAsync();
-        Console.WriteLine("Tunnel closed.");
+        eventArgs.Cancel = !cancel.IsCancellationRequested;
+        cancel.Cancel();
     }
 
-    return tunnel.Status.State == TunnelState.Faulted ? 1 : 0;
+    Console.CancelKeyPress += OnCancelKeyPress;
+    try
+    {
+        return await TunnelCommand.RunAsync(tunnel, host, Console.Out, cancel.Token);
+    }
+    finally
+    {
+        Console.CancelKeyPress -= OnCancelKeyPress;
+    }
 }
 
-// Parses `--key value` pairs into changes; a bare `--key` with no following value becomes a removal.
-static bool TryParseEdits(string[] tokens, out Dictionary<string, string> changes, out List<string> removals, out string? error)
+static async Task<int> HandleWirelessAsync(string[] args, IWirelessAdbService wireless, ISettingsService settings)
 {
-    changes = new Dictionary<string, string>(StringComparer.Ordinal);
-    removals = [];
-    error = null;
+    var command = args.Length > 0 ? args[0] : string.Empty;
 
-    for (var i = 0; i < tokens.Length; i++)
+    switch (command)
     {
-        if (!tokens[i].StartsWith("--", StringComparison.Ordinal) || tokens[i].Length == 2)
+        case "connect" when args.Length == 2:
         {
-            error = $"Expected --<key>, got '{tokens[i]}'.";
-            return false;
+            var result = await wireless.ConnectAsync(args[1]);
+            return Report(result.Success, result.Message);
         }
+        case "disconnect" when args.Length == 2:
+        {
+            var result = await wireless.DisconnectAsync(args[1]);
+            return Report(result.Success, result.Message);
+        }
+        case "pair" when args.Length is 2 or 3:
+        {
+            // Prompt for the code rather than requiring it on the command line, where it would land in shell history.
+            var code = args.Length == 3 ? args[2] : Prompt("Pairing code: ");
+            var result = await wireless.PairAsync(args[1], code);
+            return Report(result.Paired, result.Message);
+        }
+        case "enable" when args.Length == 2:
+        {
+            var result = await wireless.EnableWirelessAsync(args[1]);
+            return Report(result.Success, result.Success ? $"Connected at {result.Address}; the device can be unplugged." : result.Message);
+        }
+        case "mdns":
+        {
+            var services = await wireless.DiscoverAsync();
+            if (services.Count == 0)
+            {
+                Console.WriteLine("No wireless debugging services found (is the device on this network with Wireless debugging on?).");
+                return 0;
+            }
 
-        var key = tokens[i][2..];
+            foreach (var service in services)
+            {
+                Console.WriteLine($"{service.Type,-8} {service.Address,-22} {service.Instance}");
+            }
 
-        if (i + 1 < tokens.Length && !tokens[i + 1].StartsWith("--", StringComparison.Ordinal))
-        {
-            changes[key] = tokens[++i];
+            return 0;
         }
-        else
+        case "reconnect":
         {
-            removals.Add(key);
+            var saved = settings.WirelessAddresses.Count;
+            var connected = await wireless.ReconnectSavedAsync();
+
+            // Nothing saved is not a failure; saved devices that all failed to come back is.
+            return Report(saved == 0 || connected > 0, $"{connected} of {saved} saved wireless device(s) connected.");
         }
+        default:
+            PrintUsage(Console.Error);
+            return 1;
     }
-
-    return true;
 }
 
-// Parses `-n <name> -k <package> -d <device>` plus optional `--<key> <value>` config overrides.
-static bool TryParseCreate(string[] tokens, out string name, out string package, out string device, out Dictionary<string, string> overrides, out string? error)
+static int Help()
 {
-    name = string.Empty;
-    package = string.Empty;
-    device = string.Empty;
-    overrides = new Dictionary<string, string>(StringComparer.Ordinal);
-    error = null;
-
-    for (var i = 0; i < tokens.Length; i++)
-    {
-        var hasValue = i + 1 < tokens.Length;
-
-        switch (tokens[i])
-        {
-            case "-n" when hasValue:
-                name = tokens[++i];
-                break;
-            case "-k" when hasValue:
-                package = tokens[++i];
-                break;
-            case "-d" when hasValue:
-                device = tokens[++i];
-                break;
-            default:
-                if (tokens[i].StartsWith("--", StringComparison.Ordinal) && tokens[i].Length > 2
-                    && hasValue && !tokens[i + 1].StartsWith("--", StringComparison.Ordinal))
-                {
-                    overrides[tokens[i][2..]] = tokens[++i];
-                }
-                else
-                {
-                    error = $"Unexpected argument '{tokens[i]}'.";
-                    return false;
-                }
-
-                break;
-        }
-    }
-
-    if (name.Length == 0 || package.Length == 0 || device.Length == 0)
-    {
-        error = "Usage: emulator create -n <name> -k <package> -d <device> [--<key> <value>…]";
-        return false;
-    }
-
-    return true;
+    PrintUsage(Console.Out);
+    return 0;
 }
 
 static void PrintConfiguration(AvdConfiguration config)
@@ -375,98 +342,51 @@ static void PrintConfiguration(AvdConfiguration config)
     Line("Path", config.Path);
 }
 
-static async Task<int> HandleWirelessAsync(string[] args, IWirelessAdbService wireless)
+static void PrintUsage(TextWriter writer)
 {
-    var command = args.Length > 0 ? args[0] : string.Empty;
-
-    switch (command)
-    {
-        case "connect" when args.Length == 2:
-        {
-            var result = await wireless.ConnectAsync(args[1]);
-            Console.WriteLine(result.Message);
-            return result.Success ? 0 : 1;
-        }
-        case "disconnect" when args.Length == 2:
-        {
-            var result = await wireless.DisconnectAsync(args[1]);
-            Console.WriteLine(result.Message);
-            return result.Success ? 0 : 1;
-        }
-        case "pair" when args.Length is 2 or 3:
-        {
-            // Prompt for the code rather than requiring it on the command line, where it would land in shell history.
-            var code = args.Length == 3 ? args[2] : Prompt("Pairing code: ");
-            var result = await wireless.PairAsync(args[1], code);
-            Console.WriteLine(result.Message);
-            return result.Paired ? 0 : 1;
-        }
-        case "enable" when args.Length == 2:
-        {
-            var result = await wireless.EnableWirelessAsync(args[1]);
-            Console.WriteLine(result.Success ? $"Connected at {result.Address}; the device can be unplugged." : result.Message);
-            return result.Success ? 0 : 1;
-        }
-        case "mdns":
-        {
-            var services = await wireless.DiscoverAsync();
-            if (services.Count == 0)
-            {
-                Console.WriteLine("No wireless debugging services found (is the device on this network with Wireless debugging on?).");
-                return 0;
-            }
-
-            foreach (var service in services)
-            {
-                Console.WriteLine($"{service.Type,-8} {service.Address,-22} {service.Instance}");
-            }
-
-            return 0;
-        }
-        case "reconnect":
-        {
-            var connected = await wireless.ReconnectSavedAsync();
-            Console.WriteLine($"{connected} saved wireless device(s) connected.");
-            return 0;
-        }
-        default:
-            PrintUsage();
-            return 1;
-    }
+    writer.WriteLine("Remote.Adb console");
+    writer.WriteLine();
+    writer.WriteLine("Usage (add --verbose to any command to log the tools it runs):");
+    writer.WriteLine("  emulator list                 List available AVDs and their running state");
+    writer.WriteLine("  emulator info <avd-name>      Show the full configuration of the given AVD");
+    writer.WriteLine("  emulator edit <avd-name> …    Set --<key> <value> pairs (bare --<key> clears) and persist");
+    writer.WriteLine("  emulator images               List installed system-image packages");
+    writer.WriteLine("  emulator devices              List device profiles for create");
+    writer.WriteLine("  emulator create -n … -k … -d … [--<key> <value>…]   Create an AVD and apply overrides");
+    writer.WriteLine("  emulator delete <avd-name>    Delete the given AVD");
+    writer.WriteLine("  emulator start <avd-name>     Launch the given AVD");
+    writer.WriteLine("  emulator stop <serial>        Stop the running emulator with the given serial");
+    writer.WriteLine("  tunnel [host]                 Open the SSH reverse tunnel (host falls back to the saved setting); Ctrl+C closes it");
+    writer.WriteLine("  wireless pair <ip:port> [code]   Pair an Android 11+ device (prompts for the code if omitted)");
+    writer.WriteLine("  wireless connect <ip[:port]>  Connect a device over the network and remember it");
+    writer.WriteLine("  wireless disconnect <serial>  Disconnect a network device and forget it");
+    writer.WriteLine("  wireless enable <usb-serial>  Switch a USB device to Wi-Fi debugging and connect to it");
+    writer.WriteLine("  wireless reconnect            Reconnect every remembered device");
+    writer.WriteLine("  wireless mdns                 List wireless debugging services adb sees on the network");
 }
 
+// Reads a line from stdin. The label goes to stderr so stdout stays clean for piping, and is skipped when input is
+// redirected (nobody is there to read it).
 static string Prompt(string label)
 {
-    Console.Write(label);
+    if (!Console.IsInputRedirected)
+    {
+        Console.Error.Write(label);
+    }
+
     return Console.ReadLine() ?? string.Empty;
+}
+
+// Prints a command's outcome — to stdout on success, stderr on failure — and maps it to the exit code.
+static int Report(bool success, string message)
+{
+    (success ? Console.Out : Console.Error).WriteLine(message);
+    return success ? 0 : 1;
 }
 
 static int Unknown(string command)
 {
     Console.Error.WriteLine($"Unknown command '{command}'.");
-    PrintUsage();
+    PrintUsage(Console.Error);
     return 1;
-}
-
-static void PrintUsage()
-{
-    Console.WriteLine("Remote.Adb console");
-    Console.WriteLine();
-    Console.WriteLine("Usage (add --verbose to any command to log the tools it runs):");
-    Console.WriteLine("  emulator list                 List available AVDs and their running state");
-    Console.WriteLine("  emulator info <avd-name>      Show the full configuration of the given AVD");
-    Console.WriteLine("  emulator edit <avd-name> …    Set --<key> <value> pairs (bare --<key> clears) and persist");
-    Console.WriteLine("  emulator images               List installed system-image packages");
-    Console.WriteLine("  emulator devices              List device profiles for create");
-    Console.WriteLine("  emulator create -n … -k … -d … [--<key> <value>…]   Create an AVD and apply overrides");
-    Console.WriteLine("  emulator delete <avd-name>    Delete the given AVD");
-    Console.WriteLine("  emulator start <avd-name>     Launch the given AVD");
-    Console.WriteLine("  emulator stop <serial>        Stop the running emulator with the given serial");
-    Console.WriteLine("  tunnel [host]                 Open the SSH reverse tunnel (host falls back to the saved setting); Ctrl+C closes it");
-    Console.WriteLine("  wireless pair <ip:port> [code]   Pair an Android 11+ device (prompts for the code if omitted)");
-    Console.WriteLine("  wireless connect <ip[:port]>  Connect a device over the network and remember it");
-    Console.WriteLine("  wireless disconnect <serial>  Disconnect a network device and forget it");
-    Console.WriteLine("  wireless enable <usb-serial>  Switch a USB device to Wi-Fi debugging and connect to it");
-    Console.WriteLine("  wireless reconnect            Reconnect every remembered device");
-    Console.WriteLine("  wireless mdns                 List wireless debugging services adb sees on the network");
 }
