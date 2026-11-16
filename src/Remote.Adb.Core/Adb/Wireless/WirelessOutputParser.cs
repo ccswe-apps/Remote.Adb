@@ -27,6 +27,13 @@ public static class WirelessOutputParser
         return [];
     }
 
+    /// <summary>
+    /// Whether <c>adb mdns check</c> reports working discovery. adb exits 0 either way; it prints
+    /// <c>mdns daemon version …</c> when discovery works and <c>ERROR: …</c> when it's disabled or unavailable.
+    /// </summary>
+    public static bool IsMdnsAvailable(string output) =>
+        FirstLine(output).StartsWith("mdns daemon version", StringComparison.Ordinal);
+
     // The most useful text adb printed: stderr if any (errors), else stdout, else the exit code.
     private static string MessageOf(ProcessResult result)
     {

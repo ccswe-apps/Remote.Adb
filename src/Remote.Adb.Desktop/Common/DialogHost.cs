@@ -28,6 +28,14 @@ public static class DialogHost
         // The view model never touches the Window; it asks to close with a result, and we relay it.
         viewModel.CloseRequested += result => window.Close(result);
 
-        return await window.ShowDialog<bool>(owner);
+        viewModel.OnOpened();
+        try
+        {
+            return await window.ShowDialog<bool>(owner);
+        }
+        finally
+        {
+            viewModel.OnClosed();
+        }
     }
 }

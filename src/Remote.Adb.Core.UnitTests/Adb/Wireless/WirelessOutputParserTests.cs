@@ -131,6 +131,19 @@ public class WirelessOutputParserTests
         }
     }
 
+    public class When_IsMdnsAvailable_Is_Called : WirelessOutputParserTests
+    {
+        [TestCase("mdns daemon version [Openscreen discovery 0.0.0]\n", true)]
+        [TestCase("mdns daemon version [10970003]\n", true)]
+        [TestCase("ERROR: mdns discovery disabled\n", false)]
+        [TestCase("ERROR: mdns daemon unavailable\n", false)]
+        [TestCase("", false)]
+        public void It_reports_whether_discovery_works(string output, bool expected)
+        {
+            Assert.That(WirelessOutputParser.IsMdnsAvailable(output), Is.EqualTo(expected));
+        }
+    }
+
     public class When_ParseIpRouteSource_Is_Called : WirelessOutputParserTests
     {
         [Test]

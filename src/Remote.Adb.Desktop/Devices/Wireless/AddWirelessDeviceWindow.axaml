@@ -19,12 +19,27 @@
             <TextBlock Classes="BodySmall" Text="{Binding PairedNotice}" TextWrapping="Wrap" Foreground="{DynamicResource OnSurface}"/>
         </Border>
 
+        <!-- Each tab pairs its form with the matching devices found on the network (one shared poller). -->
         <TabControl SelectedIndex="{Binding SelectedTab}">
             <TabItem Header="Pair">
-                <wl:PairingCodeView DataContext="{Binding Pair}" Margin="0,16,0,0"/>
+                <StackPanel Spacing="20" Margin="0,16,0,0">
+                    <wl:PairingCodeView DataContext="{Binding Pair}"/>
+                    <wl:DiscoveredServicesView Title="Waiting to pair on this network"
+                                               Services="{Binding Discovery.PairingServices}"
+                                               IsUnavailable="{Binding Discovery.IsUnavailable}"
+                                               SelectCommand="{Binding SelectPairingServiceCommand}"
+                                               EmptyText="None yet — devices appear here while their pairing-code dialog is open. Pick one to fill in its address."/>
+                </StackPanel>
             </TabItem>
             <TabItem Header="Connect">
-                <wl:ConnectAddressView DataContext="{Binding Connect}" Margin="0,16,0,0"/>
+                <StackPanel Spacing="20" Margin="0,16,0,0">
+                    <wl:ConnectAddressView DataContext="{Binding Connect}"/>
+                    <wl:DiscoveredServicesView Title="Ready to connect on this network"
+                                               Services="{Binding Discovery.ConnectServices}"
+                                               IsUnavailable="{Binding Discovery.IsUnavailable}"
+                                               SelectCommand="{Binding ConnectToServiceCommand}"
+                                               EmptyText="None found — paired devices with Wireless debugging on appear here. Pick one to connect."/>
+                </StackPanel>
             </TabItem>
         </TabControl>
 

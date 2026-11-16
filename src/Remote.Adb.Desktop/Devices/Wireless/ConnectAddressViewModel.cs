@@ -23,6 +23,11 @@ public sealed partial class ConnectAddressViewModel : ViewModelBase
     [NotifyCanExecuteChangedFor(nameof(ConnectCommand))]
     private bool _isBusy;
 
+    // Whether a successful connection is saved for automatic reconnects. Off for a TLS (Android 11+) connect address
+    // picked from discovery, whose port changes whenever Wireless debugging is toggled.
+    [ObservableProperty]
+    private bool _remember = true;
+
     private readonly IWirelessAdbService _wireless;
 
     public ConnectAddressViewModel(IWirelessAdbService wireless)
@@ -43,7 +48,7 @@ public sealed partial class ConnectAddressViewModel : ViewModelBase
 
         try
         {
-            var result = await _wireless.ConnectAsync(Address);
+            var result = await _wireless.ConnectAsync(Address, Remember);
             if (result.Success)
             {
                 Connected?.Invoke();
@@ -62,6 +67,17 @@ public sealed partial class ConnectAddressViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Connects to an address picked from discovery: a legacy <c>adb tcpip</c> device (stable port 5555) is remembered,
+    /// a TLS connect address (port changes on every Wireless debugging toggle) isn't.
+    /// </summary>
+    public Task ConnectToAsync(MdnsService service)
+    {
+        Address = service.Address;
+        Remember = service.Type == MdnsServiceType.Legacy;
+        return ConnectCommand.ExecuteAsync(null);
+    }
+
     // adb's message, plus the likely fix for the failures people actually hit.
     private static string Describe(WirelessConnectResult result) => result.Outcome switch
     {
@@ -71,4 +87,7 @@ public sealed partial class ConnectAddressViewModel : ViewModelBase
             $"{result.Message}. Check the address and port, and that the device is on the same network as this computer.",
         _ => result.Message,
     };
+
+    // Typing an address by hand is the "remember this device" path again.
+    partial void OnAddressChanged(string value) => Remember = true;
 }

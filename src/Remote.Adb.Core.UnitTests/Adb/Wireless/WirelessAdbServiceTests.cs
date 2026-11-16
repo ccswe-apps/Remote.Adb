@@ -107,6 +107,25 @@ public class WirelessAdbServiceTests
         }
     }
 
+    public class When_IsDiscoveryAvailableAsync_Is_Called : WirelessAdbServiceTests
+    {
+        [Test]
+        public async Task It_is_available_when_mdns_check_reports_a_daemon()
+        {
+            Adb.Returns(["mdns", "check"], "mdns daemon version [Openscreen discovery 0.0.0]\n");
+
+            Assert.That(await CreateService().IsDiscoveryAvailableAsync(), Is.True);
+        }
+
+        [Test]
+        public async Task It_is_unavailable_when_discovery_is_disabled_even_though_adb_exits_zero()
+        {
+            Adb.Returns(["mdns", "check"], "ERROR: mdns discovery disabled\n");
+
+            Assert.That(await CreateService().IsDiscoveryAvailableAsync(), Is.False);
+        }
+    }
+
     public class When_PairAsync_Is_Called : WirelessAdbServiceTests
     {
         [Test]

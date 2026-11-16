@@ -7,22 +7,25 @@ using Remote.Adb.Desktop.Common.Threading;
 namespace Remote.Adb.Desktop.Common;
 
 /// <summary>
-/// Base for a list page that auto-refreshes while live: owns the background re-list timer, the load/empty-state
-/// flags, the reentry-guarded refresh, and the <see cref="IActivatable"/> lifecycle. Derived pages supply their
-/// collection's emptiness, the load+merge step, and the error-toast title.
+/// Base for a list page that auto-refreshes while live: owns the background re-list (via <see cref="PeriodicRefresher"/>),
+/// the load/empty-state flags, and the <see cref="IActivatable"/> lifecycle. Derived pages supply their collection's
+/// emptiness, the load+merge step, and the error-toast title.
 /// </summary>
 public abstract partial class AutoRefreshingListViewModel : ViewModelBase, IActivatable
 {
-    private readonly IDispatcherTimer _refreshTimer;
     private bool _hasLoaded;
-    private bool _isRefreshing;
     private bool _loadFailed;
+    private readonly PeriodicRefresher _refresher;
 
     protected AutoRefreshingListViewModel(ITimerFactory timerFactory, INotificationService notifications, TimeSpan refreshInterval)
     {
         Notifications = notifications;
-        _refreshTimer = timerFactory.Create(refreshInterval);
-        _refreshTimer.Tick += OnRefreshTick;
+
+        // Background tick: re-list silently (no toast spam on a persistent failure).
+        _refresher = new PeriodicRefresher(timerFactory, refreshInterval, () => LoadAndReportAsync(notifyOnError: false))
+        {
+            SkipTick = () => SkipBackgroundTick,
+        };
     }
 
     // The full-page empty state shows only once the first load has settled with nothing to show (not before a
@@ -41,37 +44,8 @@ public abstract partial class AutoRefreshingListViewModel : ViewModelBase, IActi
     /// <summary>Whether to skip a background tick (e.g. while a row is mid-launch). Never, by default.</summary>
     protected virtual bool SkipBackgroundTick => false;
 
-    /// <summary>Re-lists immediately (so the page is fresh on return) and starts the background re-list.</summary>
-    public async Task OnActivatedAsync()
+    private async Task LoadAndReportAsync(bool notifyOnError)
     {
-        _refreshTimer.Start();
-
-        // Automatic (navigation / focus return), not user-initiated: log its commands as routine background work.
-        using var scope = CommandLogScope.Background();
-        await RefreshAsync(notifyOnError: true);
-    }
-
-    /// <summary>Stops the background re-list when the page is no longer live.</summary>
-    public void OnDeactivated()
-    {
-        _refreshTimer.Stop();
-    }
-
-    /// <summary>Loads the latest snapshot and merges it into the row collection.</summary>
-    protected abstract Task LoadAsync();
-
-    /// <summary>Re-evaluate <see cref="IsListEmpty"/>; derived pages call this from their collection's change event.</summary>
-    protected void RaiseIsListEmptyChanged() => OnPropertyChanged(nameof(IsListEmpty));
-
-    protected async Task RefreshAsync(bool notifyOnError)
-    {
-        if (_isRefreshing)
-        {
-            return;
-        }
-
-        _isRefreshing = true;
-
         try
         {
             await LoadAsync();
@@ -87,24 +61,35 @@ public abstract partial class AutoRefreshingListViewModel : ViewModelBase, IActi
         }
         finally
         {
-            _isRefreshing = false;
             _hasLoaded = true;
             OnPropertyChanged(nameof(IsListEmpty));
         }
     }
 
-    // Background tick: re-list silently (no toast spam on a persistent failure); the reentry guard skips overlap.
-    private void OnRefreshTick(object? sender, EventArgs e)
-    {
-        if (SkipBackgroundTick)
-        {
-            return;
-        }
+    /// <summary>Loads the latest snapshot and merges it into the row collection.</summary>
+    protected abstract Task LoadAsync();
 
-        // The scope is captured by RefreshAsync's async flow at its first await, so disposing it on return is safe.
+    /// <summary>Re-lists immediately (so the page is fresh on return) and starts the background re-list.</summary>
+    public async Task OnActivatedAsync()
+    {
+        _refresher.Start();
+
+        // Automatic (navigation / focus return), not user-initiated: log its commands as routine background work.
         using var scope = CommandLogScope.Background();
-        _ = RefreshAsync(notifyOnError: false);
+        await RefreshAsync(notifyOnError: true);
     }
+
+    /// <summary>Stops the background re-list when the page is no longer live.</summary>
+    public void OnDeactivated()
+    {
+        _refresher.Stop();
+    }
+
+    /// <summary>Re-evaluate <see cref="IsListEmpty"/>; derived pages call this from their collection's change event.</summary>
+    protected void RaiseIsListEmptyChanged() => OnPropertyChanged(nameof(IsListEmpty));
+
+    // Shares the refresher's reentrancy guard, so a manual refresh and a tick never overlap.
+    protected Task RefreshAsync(bool notifyOnError) => _refresher.RunAsync(() => LoadAndReportAsync(notifyOnError));
 
     [RelayCommand]
     private Task RefreshAsync() => RefreshAsync(notifyOnError: true);

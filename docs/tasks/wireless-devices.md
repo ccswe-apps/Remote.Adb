@@ -1,30 +1,24 @@
-# Wireless devices: discovery, QR pairing, Wi-Fi debugging from USB
+# Wireless devices: QR pairing, Wi-Fi debugging from USB
 
-Pillar 3's remaining work. Connecting by address, pairing with a code, disconnecting, and reconnecting remembered
-addresses after an adb restart are in (`Remote.Adb.Core/Adb/Wireless/`, the Devices page's **Add Wireless Device**
-dialog, the card's **Disconnect**, and `wireless …` in the console). What's left builds on that.
+Pillar 3's remaining work. Connecting by address, pairing with a code, disconnecting, reconnecting remembered
+addresses after an adb restart, and picking devices discovered over mDNS are in (`Remote.Adb.Core/Adb/Wireless/`, the
+Devices page's **Add Wireless Device** dialog, the card's **Disconnect**, and `wireless …` in the console). What's
+left builds on that.
 
 ## Remaining work
 
-- [ ] **mDNS discovery (B3).** List the wireless-debugging services the local adb server sees
-  (`IWirelessAdbService.DiscoverAsync` / `WirelessOutputParser.ParseMdnsServices` already exist) on the dialog's
-  Connect tab, refreshed every ~2 s via `ITimerFactory` while the tab is visible. A `_adb-tls-pairing._tcp` row
-  pre-fills the Pair tab's address; a `_adb-tls-connect._tcp` or `_adb._tcp` row connects. Check `adb mdns check`
-  first (it exits 0 even when discovery is off — OK only if the output starts with `mdns daemon version`) and show
-  a hint instead of an empty list when it's unavailable.
-  - Polling outlives a closed dialog today: add `IDialogViewModel.OnClosed()` (default no-op), call it from
-    `DialogHost.ShowAsync` after `ShowDialog` returns, and stop the timer there. **Don't** make the dialog VM
-    `IDisposable` — it's a transient resolved from the root container, which would keep every instance alive.
-- [ ] **QR pairing (B4).** Generate `WIFI:T:ADB;S:<service-name>;P:<password>;;` (password from
-  `RandomNumberGenerator.GetString` over a QR-safe alphabet — no `;`, `:`, `,`, `\`), render it with **QRCoder**
-  (MIT, no dependencies; Desktop only) as a small control drawn dark-on-white with a quiet zone regardless of
-  theme, then poll `adb mdns services` (in `CommandLogScope.Background()`) for a `_adb-tls-pairing._tcp` service
-  whose instance == the service name, pair with the password on stdin, and reuse `PairAsync`'s wait-for-connect.
-  Lives on the Pair tab beside the code form.
-- [ ] **Enable Wi-Fi debugging from USB (B5).** A USB device card action: read the IP **first**
-  (`adb -s <serial> shell ip route` → `WirelessOutputParser.ParseIpRouteSource`, falling back to
-  `ip -4 addr show wlan0`), then `adb -s <serial> tcpip 5555` (prints `restarting in TCP mode port: 5555`; adbd
-  restarting drops the USB link, so `shell` fails right after), then connect and remember `<ip>:5555`.
+- [ ] **QR pairing (B4).** Generate `WIFI:T:ADB;S:<service-name>;P:<password>;;` with the name and password drawn
+  from `[A-Za-z0-9]` only (`RandomNumberGenerator.GetString`), render it with **QRCoder** (MIT; Desktop only) as a
+  small fixed-size control drawn dark-on-white regardless of theme — `QRCodeData.ModuleMatrix` already includes the
+  quiet zone. Don't add a second poller: watch the dialog's `WirelessDiscoveryViewModel.PairingServices` for the
+  service whose instance == the service name, then call `PairAsync(service.Address, password)` (the password is just
+  a pairing code). Lives on the Pair tab beside the code form; regenerate the code every ~2 minutes, pause while the
+  code form is pairing, close the dialog at most once, and show the discovery-unavailable hint instead of a code
+  that can't complete. Give the `adb pair` call a timeout.
+- [ ] **Enable Wi-Fi debugging from USB (B5).** A USB device card action (online/authorized devices only): read the
+  IP **first** — a `wlan*` route's `src` only (never mobile data/VPN), falling back to `ip -4 addr show wlan0` — then
+  `adb -s <serial> tcpip 5555` (prints `restarting in TCP mode port: 5555`; adbd restarting drops the USB link, so
+  `shell` fails right after), then retry connecting to (and remember) `<ip>:5555` for ~10 s.
 
 ## Deferred hardening
 
@@ -35,9 +29,11 @@ dialog, the card's **Disconnect**, and `wireless …` in the console). What's le
 
 - Everything goes through the **local** adb server — the one the tunnel exposes — so a device connected here is
   also visible to the remote host's adb. mDNS discovery and QR pairing need this machine on the phone's LAN, with
-  UDP 5353 allowed for `adb.exe` through the firewall.
+  UDP 5353 allowed for `adb.exe` through the firewall; discovery is IPv4-only.
 - `adb connect` exits 0 even when it fails; the outcome is in the message (check `already connected to` before
-  `connected to`). `adb pair` failures mostly surface as a generic `error: protocol fault …`.
+  `connected to`). `adb pair` failures mostly surface as a generic `error: protocol fault …`. `adb mdns check` also
+  exits 0 when discovery is off — it's available only if the output starts with `mdns daemon version`.
 - An Android 11+ device's connect port changes every time Wireless debugging is toggled, so TLS connect
-  addresses (and the post-pairing connect) aren't remembered — only addresses entered by hand are.
+  addresses (and the post-pairing connect) aren't remembered — only addresses entered by hand and legacy `adb tcpip`
+  devices (port 5555) are.
 - Disconnecting an mDNS-connected device may not stick: adb's mDNS auto-connect can reconnect it.

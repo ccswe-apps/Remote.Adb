@@ -97,6 +97,13 @@ public sealed class WirelessAdbService : IWirelessAdbService
         }
     }
 
+    /// <inheritdoc />
+    public async Task<bool> IsDiscoveryAvailableAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await AdbAsync(["mdns", "check"], cancellationToken);
+        return result.Success && WirelessOutputParser.IsMdnsAvailable(result.StandardOutput);
+    }
+
     // A saved address may omit adb's default port, while the serial adb reports always includes it.
     private static bool IsSameDevice(string address, string serial) =>
         string.Equals(address, serial, StringComparison.OrdinalIgnoreCase)

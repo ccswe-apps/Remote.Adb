@@ -21,7 +21,7 @@ manual scripts and steps.
 
 | Milestone | Notes |
 |-----------|-------|
-| **Wireless devices: discovery, QR pairing, Wi-Fi from USB** | Pillar 3. [tasks/wireless-devices.md](tasks/wireless-devices.md); connecting by address and pairing with a code are in — what's left is picking a device from mDNS discovery, QR-code pairing, and switching a USB device to Wi-Fi. |
+| **Wireless devices: QR pairing, Wi-Fi from USB** | Pillar 3. [tasks/wireless-devices.md](tasks/wireless-devices.md); connecting by address, pairing with a code, and picking discovered devices are in — what's left is QR-code pairing and switching a USB device to Wi-Fi. |
 | **SDK Manager UI** (list / download / remove system images & packages via `sdkmanager`) | [tasks/sdk-manager.md](tasks/sdk-manager.md); unblocks creating from a not-yet-installed image. |
 | **DI lifetimes / stop manual construction** | [tasks/di-lifetimes.md](tasks/di-lifetimes.md); deferred until a concrete driver — scope view models to their owning window/view and resolve currently-`new`'d dialog windows/VMs from DI. |
 
