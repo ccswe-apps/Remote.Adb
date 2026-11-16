@@ -31,6 +31,17 @@ public class ExecutableLocatorTests
         }
     }
 
+    public class When_ExecutableName_Is_Called : ExecutableLocatorTests
+    {
+        [Test]
+        public void It_adds_the_platform_extension()
+        {
+            var expected = OperatingSystem.IsWindows() ? "java.exe" : "java";
+
+            Assert.That(ExecutableLocator.ExecutableName("java"), Is.EqualTo(expected));
+        }
+    }
+
     public class When_FindOnPath_Is_Called : ExecutableLocatorTests
     {
         [Test]

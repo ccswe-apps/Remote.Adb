@@ -10,6 +10,8 @@ namespace Remote.Adb.Core.Settings;
 /// </summary>
 internal sealed class SettingsModel
 {
+    private List<string> _wirelessAddresses = [];
+
     /// <summary>Override for the AVD home directory; <see langword="null"/> uses the env-var/default resolution.</summary>
     public string? AvdHome { get; set; }
 
@@ -52,7 +54,11 @@ internal sealed class SettingsModel
 
     /// <summary>
     /// Wireless device addresses (<c>host:port</c>) connected by hand, reconnected whenever the local adb server
-    /// restarts (which drops every network device).
+    /// restarts (which drops every network device). A <c>null</c> in the file (hand-edited) reads as empty.
     /// </summary>
-    public List<string> WirelessAddresses { get; set; } = [];
+    public List<string> WirelessAddresses
+    {
+        get => _wirelessAddresses;
+        set => _wirelessAddresses = value ?? [];
+    }
 }

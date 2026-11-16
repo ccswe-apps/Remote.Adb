@@ -33,6 +33,9 @@ internal sealed class SettingsStore : ISettingsStore
         _logger.LogInformation("Using settings file {Path}.", _filePath);
     }
 
+    /// <summary>Where an unreadable (corrupt) settings file is moved before defaults replace it: <c>settings.json.bak</c>.</summary>
+    internal string BackupFilePath => _filePath + ".bak";
+
     /// <summary>The default settings path: <c>{ApplicationData}/Remote.Adb/settings.json</c>.</summary>
     public static string DefaultFilePath()
     {
@@ -54,9 +57,16 @@ internal sealed class SettingsStore : ISettingsStore
             var json = File.ReadAllText(_filePath);
             return JsonSerializer.Deserialize<SettingsModel>(json, JsonOptions) ?? new SettingsModel();
         }
-        catch (Exception exception) when (exception is IOException or JsonException or UnauthorizedAccessException)
+        catch (JsonException exception)
         {
-            _logger.LogDebug(exception, "Could not read settings from {Path}; using defaults.", _filePath);
+            // The next save would overwrite the file with defaults, losing whatever the user had — keep it aside.
+            _logger.LogWarning(exception, "Settings file {Path} is not valid JSON; using defaults. The unreadable file is kept as {Backup}.", _filePath, BackupFilePath);
+            TryBackUpCorruptFile();
+            return new SettingsModel();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(exception, "Could not read settings from {Path}; using defaults.", _filePath);
             return new SettingsModel();
         }
     }
@@ -92,7 +102,20 @@ internal sealed class SettingsStore : ISettingsStore
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            _logger.LogDebug(exception, "Could not write settings to {Path}.", _filePath);
+            _logger.LogWarning(exception, "Could not write settings to {Path}; the change won't survive a restart.", _filePath);
+        }
+    }
+
+    // Moves an unparseable settings file to BackupFilePath (replacing an older backup) so it can be recovered by hand.
+    private void TryBackUpCorruptFile()
+    {
+        try
+        {
+            File.Move(_filePath, BackupFilePath, overwrite: true);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(exception, "Could not back up the unreadable settings file {Path}.", _filePath);
         }
     }
 }

@@ -5,10 +5,12 @@ namespace Remote.Adb.Core.Common;
 /// <inheritdoc />
 internal sealed class ProcessSession : IProcessSession
 {
+    private bool _disposed;
+    private int? _exitCode;
     private readonly Process _process;
+    private string _standardError = string.Empty;
     private readonly Task<string> _standardErrorTask;
     private readonly Task<string> _standardOutputTask;
-    private string _standardError = string.Empty;
 
     public ProcessSession(Process process)
     {
@@ -21,10 +23,10 @@ internal sealed class ProcessSession : IProcessSession
     }
 
     /// <inheritdoc />
-    public int? ExitCode => _process.HasExited ? _process.ExitCode : null;
+    public int? ExitCode => _exitCode ?? (_disposed ? null : TryReadExitCode());
 
     /// <inheritdoc />
-    public bool HasExited => _process.HasExited;
+    public bool HasExited => _disposed || ExitCode is not null;
 
     /// <inheritdoc />
     public string StandardError => _standardError;
@@ -32,6 +34,11 @@ internal sealed class ProcessSession : IProcessSession
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         Kill();
 
         try
@@ -43,20 +50,54 @@ internal sealed class ProcessSession : IProcessSession
             // Killing the process tears the pipes down; the drain reads completing in error is expected.
         }
 
+        if (_standardErrorTask.IsCompletedSuccessfully)
+        {
+            _standardError = _standardErrorTask.Result;
+        }
+
+        // Capture the exit code while the Process can still be asked: once disposed it throws instead.
+        _exitCode ??= TryReadExitCode();
+        _disposed = true;
         _process.Dispose();
     }
 
     /// <inheritdoc />
-    public void Kill() => _process.KillTree();
+    public void Kill()
+    {
+        if (!_disposed)
+        {
+            _process.KillTree();
+        }
+    }
+
+    // The exit code if the process has exited, else null — null too if the Process can no longer be queried
+    // (disposed concurrently).
+    private int? TryReadExitCode()
+    {
+        try
+        {
+            return _process.HasExited ? _process.ExitCode : null;
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+    }
 
     /// <inheritdoc />
     public async Task<int> WaitForExitAsync(CancellationToken cancellationToken = default)
     {
-        await _process.WaitForExitAsync(cancellationToken);
+        if (!_disposed)
+        {
+            await _process.WaitForExitAsync(cancellationToken);
 
-        _standardError = await _standardErrorTask;
-        await _standardOutputTask;
+            _standardError = await _standardErrorTask;
+            await _standardOutputTask;
 
-        return _process.ExitCode;
+            _exitCode ??= TryReadExitCode();
+        }
+
+        // -1 when the session was disposed before the exit code could be read (it was killed).
+        return _exitCode ?? -1;
     }
 }

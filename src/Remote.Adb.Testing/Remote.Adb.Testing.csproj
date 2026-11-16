@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <!-- Fakes over Core's internal interfaces are internal themselves. -->
+    <InternalsVisibleTo Include="Remote.Adb.Console.UnitTests" />
     <InternalsVisibleTo Include="Remote.Adb.Core.UnitTests" />
     <InternalsVisibleTo Include="Remote.Adb.Desktop.UnitTests" />
   </ItemGroup>

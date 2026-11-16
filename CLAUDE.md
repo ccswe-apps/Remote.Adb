@@ -90,7 +90,7 @@ Projects in `src/Remote.Adb.slnx`:
 - **`Remote.Adb.Core`** — class library holding all domain logic: models, services (process execution, Android SDK location, emulator management, adb devices, wireless connect/pair (`Adb/Wireless/`), SSH tunnel), and the `AddRemoteAdbCore()` DI registration extension. Both front-ends depend on it; it has no UI dependency.
 - **`Remote.Adb.Desktop`** — the Avalonia desktop GUI (`WinExe`), MVVM.
 - **`Remote.Adb.Console`** — the CLI front-end exposing the same Core functionality.
-- **`Remote.Adb.Core.UnitTests`** / **`Remote.Adb.Desktop.UnitTests`** — NUnit tests for Core / Desktop.
+- **`Remote.Adb.Core.UnitTests`** / **`Remote.Adb.Desktop.UnitTests`** / **`Remote.Adb.Console.UnitTests`** — NUnit tests for Core / Desktop / Console.
 - **`Remote.Adb.Testing`** — shared test helpers (fakes, mocks, `FakeTimeProvider`) referenced by the test projects.
 
 Both front-ends compose a `Microsoft.Extensions.DependencyInjection` service provider and call `AddRemoteAdbCore()` to register the shared services. Keep logic in Core; the GUI and CLI are thin shells over it.
@@ -130,7 +130,7 @@ Pattern: a full-bleed scroll container (no margin/padding) → scrolled content 
 
 - **Framework:** NUnit. **Mocking:** Moq.
 - Unit tests live in `Remote.Adb.Core.UnitTests` and `Remote.Adb.Desktop.UnitTests` (flat under `src/`, alongside the projects they test).
-- **Shared test helpers go in `Remote.Adb.Testing`:** `LoggerFake`, `RecordingLogger`, `AdbRunnerMock`, `FakeProcessSession`, and `FakeTimeProvider` (via `Microsoft.Extensions.TimeProvider.Testing`). Helpers that only make sense for one test project (e.g. Desktop's `FakeTimerFactory`, `FakeUiDispatcher`) stay in that project's `Fakes/`. Before writing a mock setup a second time, add it to a shared helper.
+- **Shared test helpers go in `Remote.Adb.Testing`:** `LoggerFake`, `RecordingLogger`, `AdbRunnerMock`, `ProcessRunnerMock`, `FakeProcessSession`, `FakeTimeProvider` (via `Microsoft.Extensions.TimeProvider.Testing`) and `AdvanceUntilCompleteAsync` to drive it. Helpers that only make sense for one test project (e.g. Desktop's `FakeTimerFactory`, `FakeUiDispatcher`) stay in that project's `Fakes/`. Before writing a mock setup a second time, add it to a shared helper.
 - Every NUnit test project references `NUnit.Analyzers` (`PrivateAssets=all`) and has a `Usings.cs` with `global using NUnit.Framework;`.
 - Follow AAA (Arrange, Act, Assert) — separate the sections with blank lines, NOT with `// Arrange` / `// Act` / `// Assert` comments.
 

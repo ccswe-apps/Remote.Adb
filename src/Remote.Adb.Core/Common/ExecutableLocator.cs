@@ -7,6 +7,13 @@ namespace Remote.Adb.Core.Common;
 internal static class ExecutableLocator
 {
     /// <summary>
+    /// The platform file name of the executable <paramref name="name"/>: <c>name.exe</c> on Windows, the bare name
+    /// elsewhere — for building the path of a tool inside a known directory (an SDK or JDK <c>bin</c>).
+    /// </summary>
+    /// <param name="name">The tool name without extension (e.g. <c>java</c>).</param>
+    public static string ExecutableName(string name) => OperatingSystem.IsWindows() ? $"{name}.exe" : name;
+
+    /// <summary>
     /// Returns the full path to <paramref name="fileName"/> found on <c>PATH</c> (trying the platform's
     /// executable extensions on Windows), or <see langword="null"/> if it isn't on <c>PATH</c>.
     /// </summary>

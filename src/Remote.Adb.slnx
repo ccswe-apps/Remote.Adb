@@ -36,6 +36,7 @@
     <Project Path="Remote.Adb.Desktop/Remote.Adb.Desktop.csproj" />
   </Folder>
   <Folder Name="/test/">
+    <Project Path="Remote.Adb.Console.UnitTests/Remote.Adb.Console.UnitTests.csproj" />
     <Project Path="Remote.Adb.Core.UnitTests/Remote.Adb.Core.UnitTests.csproj" />
     <Project Path="Remote.Adb.Desktop.UnitTests/Remote.Adb.Desktop.UnitTests.csproj" />
     <Project Path="Remote.Adb.Testing/Remote.Adb.Testing.csproj" />

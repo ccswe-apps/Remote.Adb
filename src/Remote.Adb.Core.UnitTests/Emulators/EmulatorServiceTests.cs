@@ -120,9 +120,26 @@ public class EmulatorServiceTests
             adb.Returns(["-s", "emulator-5554", "emu", "kill"], string.Empty);
             var service = CreateService(new Mock<IProcessRunner>(), adb);
 
-            await service.StopAsync("emulator-5554");
+            var result = await service.StopAsync("emulator-5554");
 
+            Assert.That(result.Success, Is.True);
             adb.Verify(["-s", "emulator-5554", "emu", "kill"], Times.Once());
+        }
+
+        [Test]
+        public async Task It_reports_the_adb_error_when_the_stop_fails()
+        {
+            var adb = new AdbRunnerMock();
+            adb.Returns(["-s", "emulator-5554", "emu", "kill"], string.Empty, exitCode: 1, stderr: "error: device 'emulator-5554' not found");
+            var service = CreateService(new Mock<IProcessRunner>(), adb);
+
+            var result = await service.StopAsync("emulator-5554");
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Success, Is.False);
+                Assert.That(result.Error, Is.EqualTo("error: device 'emulator-5554' not found"));
+            });
         }
     }
 }
