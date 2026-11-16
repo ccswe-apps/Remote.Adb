@@ -1,0 +1,33 @@
+Remote.Adb — third-party notices
+================================
+
+Remote.Adb is licensed under the MIT License (see LICENSE.md). Its release archives also contain, or are built from,
+the third-party components below. Full license texts that must travel with the software are in the `licenses/`
+folder next to this file.
+
+Bundled runtime and libraries (MIT License)
+-------------------------------------------
+- .NET runtime and libraries (self-contained builds bundle the runtime) — Copyright (c) .NET Foundation and
+  Contributors. https://github.com/dotnet/runtime (its own third-party notices:
+  https://github.com/dotnet/runtime/blob/main/THIRD-PARTY-NOTICES.TXT)
+- Microsoft.Extensions.* (DependencyInjection, Hosting, Logging) — Copyright (c) .NET Foundation and Contributors.
+  https://github.com/dotnet/runtime
+- Avalonia — Copyright (c) AvaloniaUI OÜ and contributors. https://github.com/AvaloniaUI/Avalonia
+- SkiaSharp and HarfBuzzSharp — Copyright (c) Microsoft Corporation and contributors.
+  https://github.com/mono/SkiaSharp (which redistribute Skia, BSD-3-Clause, and HarfBuzz, "Old MIT")
+- CommunityToolkit.Mvvm — Copyright (c) .NET Foundation and Contributors. https://github.com/CommunityToolkit/dotnet
+- CCSWE.Avalonia.Hosting, CCSWE.Avalonia.Material, CCSWE.Avalonia.ViewLocator — Copyright (c) Cory Charlton.
+- QRCoder — Copyright (c) 2013-2025 Raffael Herrmann. https://github.com/Shane32/QRCoder
+  (licenses/QRCODER-LICENSE.txt)
+
+Fonts (SIL Open Font License 1.1), embedded via CCSWE.Avalonia.Material
+-----------------------------------------------------------------------
+- DM Sans (licenses/DMSans-OFL.txt)
+- DM Mono (licenses/DMMono-OFL.txt)
+- Plus Jakarta Sans (licenses/PlusJakartaSans-OFL.txt)
+- JetBrains Mono (licenses/JetBrainsMono-OFL.txt)
+
+Icons
+-----
+- Phosphor Icons (MIT License), vendored as geometry in the desktop app (licenses/PHOSPHOR-LICENSE.txt).
+- Material Symbols (Apache License 2.0), via CCSWE.Avalonia.Material (licenses/MATERIAL-SYMBOLS-LICENSE.txt).

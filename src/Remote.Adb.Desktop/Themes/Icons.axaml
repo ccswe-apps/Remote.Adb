@@ -3,7 +3,7 @@
     <!--
         Phosphor Icons (regular weight) — vendored as geometry, app-specific by design.
         Source: https://github.com/phosphor-icons/core (assets/regular), viewBox 0 0 256 256.
-        Licensed MIT (c) 2023 Phosphor Icons — see Assets/Icons/PHOSPHOR-LICENSE.txt.
+        Licensed MIT (c) 2023 Phosphor Icons — see licenses/PHOSPHOR-LICENSE.txt (shipped with every release).
         Only the icons this app actually uses live here; add more as needed rather than bundling the set.
     -->
 
