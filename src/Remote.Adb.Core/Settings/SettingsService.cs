@@ -2,10 +2,12 @@ namespace Remote.Adb.Core.Settings;
 
 /// <summary>
 /// <see cref="ISettingsService"/> backed by an <see cref="ISettingsStore"/>: the persisted model is loaded
-/// once on construction and re-saved whenever a setting changes.
+/// once on construction and re-saved whenever a setting changes. Every change (compare, assign, save) runs under
+/// one lock, so concurrent writers neither lose updates nor race each other's save.
 /// </summary>
 internal sealed class SettingsService : ISettingsService
 {
+    private readonly Lock _gate = new();
     private readonly SettingsModel _model;
     private readonly ISettingsStore _store;
 
@@ -15,162 +17,125 @@ internal sealed class SettingsService : ISettingsService
         _model = _store.Load();
     }
 
+    /// <inheritdoc />
     public string? AvdHome
     {
         get => _model.AvdHome;
-        set => SetOverride(_model.AvdHome, value, normalized => _model.AvdHome = normalized);
+        set => SetOverride(() => _model.AvdHome, value, normalized => _model.AvdHome = normalized);
     }
 
+    /// <inheritdoc />
     public AppDensity Density
     {
         get => _model.Density;
-        set
-        {
-            if (_model.Density == value)
-            {
-                return;
-            }
-
-            _model.Density = value;
-            _store.Save(_model);
-        }
+        set => Set(() => _model.Density, value, density => _model.Density = density);
     }
 
+    /// <inheritdoc />
     public string? JavaHome
     {
         get => _model.JavaHome;
-        set => SetOverride(_model.JavaHome, value, normalized => _model.JavaHome = normalized);
+        set => SetOverride(() => _model.JavaHome, value, normalized => _model.JavaHome = normalized);
     }
 
+    /// <inheritdoc />
     public double LogPanelHeight
     {
         get => _model.LogPanelHeight;
-        set
-        {
-            if (_model.LogPanelHeight.Equals(value))
-            {
-                return;
-            }
-
-            _model.LogPanelHeight = value;
-            _store.Save(_model);
-        }
+        set => Set(() => _model.LogPanelHeight, value, height => _model.LogPanelHeight = height);
     }
 
+    /// <inheritdoc />
     public bool LogPanelOpen
     {
         get => _model.LogPanelOpen;
-        set
-        {
-            if (_model.LogPanelOpen == value)
-            {
-                return;
-            }
-
-            _model.LogPanelOpen = value;
-            _store.Save(_model);
-        }
+        set => Set(() => _model.LogPanelOpen, value, open => _model.LogPanelOpen = open);
     }
 
+    /// <inheritdoc />
     public string? SdkRoot
     {
         get => _model.SdkRoot;
-        set => SetOverride(_model.SdkRoot, value, normalized => _model.SdkRoot = normalized);
+        set => SetOverride(() => _model.SdkRoot, value, normalized => _model.SdkRoot = normalized);
     }
 
+    /// <inheritdoc />
     public AppTheme Theme
     {
         get => _model.Theme;
-        set
-        {
-            if (_model.Theme == value)
-            {
-                return;
-            }
-
-            _model.Theme = value;
-            _store.Save(_model);
-        }
+        set => Set(() => _model.Theme, value, theme => _model.Theme = theme);
     }
 
+    /// <inheritdoc />
     public bool TunnelAutoConnect
     {
         get => _model.TunnelAutoConnect;
-        set
-        {
-            if (_model.TunnelAutoConnect == value)
-            {
-                return;
-            }
-
-            _model.TunnelAutoConnect = value;
-            _store.Save(_model);
-        }
+        set => Set(() => _model.TunnelAutoConnect, value, autoConnect => _model.TunnelAutoConnect = autoConnect);
     }
 
+    /// <inheritdoc />
     public string? TunnelHost
     {
         get => _model.TunnelHost;
-        set => SetOverride(_model.TunnelHost, value, normalized => _model.TunnelHost = normalized);
+        set => SetOverride(() => _model.TunnelHost, value, normalized => _model.TunnelHost = normalized);
     }
 
+    /// <inheritdoc />
     public int TunnelLocalPort
     {
         get => _model.TunnelLocalPort;
-        set
-        {
-            if (_model.TunnelLocalPort == value)
-            {
-                return;
-            }
-
-            _model.TunnelLocalPort = value;
-            _store.Save(_model);
-        }
+        set => Set(() => _model.TunnelLocalPort, value, port => _model.TunnelLocalPort = port);
     }
 
+    /// <inheritdoc />
     public int TunnelRemotePort
     {
         get => _model.TunnelRemotePort;
-        set
-        {
-            if (_model.TunnelRemotePort == value)
-            {
-                return;
-            }
-
-            _model.TunnelRemotePort = value;
-            _store.Save(_model);
-        }
+        set => Set(() => _model.TunnelRemotePort, value, port => _model.TunnelRemotePort = port);
     }
 
+    /// <inheritdoc />
     public IReadOnlyList<string> WirelessAddresses
     {
+        // The stored list is replaced, never mutated, so handing it out is safe.
         get => _model.WirelessAddresses;
-        set
-        {
-            if (_model.WirelessAddresses.SequenceEqual(value))
-            {
-                return;
-            }
-
-            _model.WirelessAddresses = [.. value];
-            _store.Save(_model);
-        }
+        set => UpdateWirelessAddresses(_ => value);
     }
 
     // A blank or whitespace path means "no override" — store it as null so it round-trips as absent.
     private static string? Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    private void SetOverride(string? current, string? value, Action<string?> assign)
+    // The one compare / assign / save path every setter shares: saves only when the value actually changes.
+    private void Set<T>(Func<T> current, T value, Action<T> assign)
     {
-        var normalized = Normalize(value);
-        if (current == normalized)
+        lock (_gate)
         {
-            return;
-        }
+            if (EqualityComparer<T>.Default.Equals(current(), value))
+            {
+                return;
+            }
 
-        assign(normalized);
-        _store.Save(_model);
+            assign(value);
+            _store.Save(_model);
+        }
+    }
+
+    private void SetOverride(Func<string?> current, string? value, Action<string?> assign) =>
+        Set(current, Normalize(value), assign);
+
+    /// <inheritdoc />
+    public void UpdateWirelessAddresses(Func<IReadOnlyList<string>, IReadOnlyList<string>> update)
+    {
+        lock (_gate)
+        {
+            var updated = update(_model.WirelessAddresses);
+            if (_model.WirelessAddresses.SequenceEqual(updated))
+            {
+                return;
+            }
+
+            _model.WirelessAddresses = [.. updated];
+            _store.Save(_model);
+        }
     }
 }

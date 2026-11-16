@@ -14,7 +14,6 @@ internal sealed class WirelessAdbService : IWirelessAdbService
     internal const int DefaultWirelessPort = 5555;
 
     private readonly IAdbRunner _adb;
-    private readonly Lock _gate = new();
     private readonly ILogger<WirelessAdbService> _logger;
     private readonly ISettingsService _settings;
     private readonly TimeProvider _timeProvider;
@@ -131,17 +130,8 @@ internal sealed class WirelessAdbService : IWirelessAdbService
             : new WirelessEnableResult(WirelessEnableOutcome.ConnectFailed, address, last?.Message ?? $"Timed out connecting to {address}.");
     }
 
-    private void Forget(string serial)
-    {
-        lock (_gate)
-        {
-            var saved = _settings.WirelessAddresses;
-            if (saved.Any(address => IsSameDevice(address, serial)))
-            {
-                _settings.WirelessAddresses = saved.Where(address => !IsSameDevice(address, serial)).ToList();
-            }
-        }
-    }
+    private void Forget(string serial) =>
+        _settings.UpdateWirelessAddresses(saved => saved.Where(address => !IsSameDevice(address, serial)).ToList());
 
     /// <inheritdoc />
     public async Task<bool> IsDiscoveryAvailableAsync(CancellationToken cancellationToken = default)
@@ -234,17 +224,9 @@ internal sealed class WirelessAdbService : IWirelessAdbService
         return connected;
     }
 
-    private void Remember(string address)
-    {
-        lock (_gate)
-        {
-            var saved = _settings.WirelessAddresses;
-            if (!saved.Any(existing => IsSameDevice(existing, address) || IsSameDevice(address, existing)))
-            {
-                _settings.WirelessAddresses = [.. saved, address];
-            }
-        }
-    }
+    private void Remember(string address) =>
+        _settings.UpdateWirelessAddresses(saved =>
+            saved.Any(existing => IsSameDevice(existing, address) || IsSameDevice(address, existing)) ? saved : [.. saved, address]);
 
     // After pairing, adb tries to connect by the device's mDNS name (its guid) — but only if it has already seen the
     // device's _adb-tls-connect announcement. Poll until the device is listed, connecting explicitly to the announced

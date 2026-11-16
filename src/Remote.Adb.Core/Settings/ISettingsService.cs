@@ -1,6 +1,5 @@
 using JetBrains.Annotations;
 
-
 namespace Remote.Adb.Core.Settings;
 
 /// <summary>
@@ -45,4 +44,15 @@ public interface ISettingsService
 
     /// <summary>Wireless device addresses (<c>host:port</c>) to reconnect whenever the local adb server restarts.</summary>
     IReadOnlyList<string> WirelessAddresses { get; set; }
+
+    /// <summary>
+    /// Atomically replaces <see cref="WirelessAddresses"/> with the result of <paramref name="update"/> applied to
+    /// the current list (saving only if it changed), so concurrent read-modify-write callers can't lose each
+    /// other's changes the way a separate get and set could.
+    /// </summary>
+    /// <param name="update">
+    /// Maps the current addresses to the new ones. Runs under the settings lock, so it should be a quick, pure
+    /// transformation.
+    /// </param>
+    void UpdateWirelessAddresses(Func<IReadOnlyList<string>, IReadOnlyList<string>> update);
 }

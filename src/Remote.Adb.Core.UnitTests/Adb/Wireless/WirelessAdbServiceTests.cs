@@ -49,6 +49,8 @@ public class WirelessAdbServiceTests
         Settings.SetupGet(settings => settings.WirelessAddresses).Returns(() => Saved);
         Settings.SetupSet(settings => settings.WirelessAddresses = It.IsAny<IReadOnlyList<string>>())
             .Callback<IReadOnlyList<string>>(value => Saved = [.. value]);
+        Settings.Setup(settings => settings.UpdateWirelessAddresses(It.IsAny<Func<IReadOnlyList<string>, IReadOnlyList<string>>>()))
+            .Callback<Func<IReadOnlyList<string>, IReadOnlyList<string>>>(update => Saved = [.. update(Saved)]);
         Time = new FakeTimeProvider();
     }
 
