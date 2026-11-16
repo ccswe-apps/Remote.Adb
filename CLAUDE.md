@@ -136,6 +136,10 @@ Follow the AAA pattern. Use blank lines to separate sections — do **not** use 
 - `ILogger` should be mocked using the `LoggerFake` class, not `new Mock<ILogger>()`
 - Prefer `ReturnsAsync(...)` and `ThrowsAsync(...)` over manually setting up async mock methods
 
+## Running the app for manual testing
+
+Always launch it with `REMOTE_ADB_SETTINGS` pointing at a scratch file. Otherwise it uses the real settings file — and if tunnel auto-connect is on, every launch opens the user's real SSH tunnel (killing the remote `adb`). See `docs/wslg-gui-debugging.md` §10 for driving the window on Windows.
+
 # Coding Standards
 
 Follow standard C# conventions ([source](https://learn.microsoft.com/en-us/dotnet/csharp/fundamentals/coding-style/coding-conventions)).

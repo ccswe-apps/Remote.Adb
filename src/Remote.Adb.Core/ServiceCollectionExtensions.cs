@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Remote.Adb.Core.Adb;
 using Remote.Adb.Core.Adb.Wireless;
 using Remote.Adb.Core.Common;
@@ -27,7 +28,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IEmulatorService, EmulatorService>();
         services.AddSingleton<IExecutableFinder, ExecutableFinder>();
         services.AddSingleton<ISdkDiagnostics, SdkDiagnostics>();
-        services.AddSingleton<ISettingsStore, SettingsStore>();
+        services.AddSingleton<ISettingsStore>(provider => new SettingsStore(
+            provider.GetRequiredService<ILogger<SettingsStore>>(),
+            SettingsStore.ResolveFilePath(Environment.GetEnvironmentVariable)));
         services.AddSingleton<ISettingsService, SettingsService>();
         services.AddSingleton<ITunnelService, TunnelService>();
         services.AddSingleton<IWirelessAdbService, WirelessAdbService>();

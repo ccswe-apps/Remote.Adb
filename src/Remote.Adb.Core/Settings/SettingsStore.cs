@@ -7,6 +7,12 @@ namespace Remote.Adb.Core.Settings;
 /// <inheritdoc />
 public sealed class SettingsStore : ISettingsStore
 {
+    /// <summary>
+    /// The environment variable that, when set, points the app at a different settings file — e.g. a scratch file for
+    /// a test run, so it can't touch (or act on) the real settings.
+    /// </summary>
+    public const string FilePathVariable = "REMOTE_ADB_SETTINGS";
+
     // Enums are written as names (e.g. "Dark") so the file is human-readable and stable against enum
     // reordering. Reflection-based serialization keeps "add a setting" to a single edit on SettingsModel.
     // NOTE: if Core is ever trim/AOT-published, swap to a source-generated JsonSerializerContext.
@@ -24,6 +30,7 @@ public sealed class SettingsStore : ISettingsStore
     {
         _logger = logger;
         _filePath = filePath ?? DefaultFilePath();
+        _logger.LogInformation("Using settings file {Path}.", _filePath);
     }
 
     /// <summary>The default settings path: <c>{ApplicationData}/Remote.Adb/settings.json</c>.</summary>
@@ -52,6 +59,16 @@ public sealed class SettingsStore : ISettingsStore
             _logger.LogDebug(exception, "Could not read settings from {Path}; using defaults.", _filePath);
             return new SettingsModel();
         }
+    }
+
+    /// <summary>
+    /// The settings file to use: the <see cref="FilePathVariable"/> override (made absolute, so it doesn't depend on
+    /// the working directory the app was launched from) when set, otherwise <see cref="DefaultFilePath"/>.
+    /// </summary>
+    internal static string ResolveFilePath(Func<string, string?> getVariable)
+    {
+        var overridePath = getVariable(FilePathVariable);
+        return string.IsNullOrWhiteSpace(overridePath) ? DefaultFilePath() : Path.GetFullPath(overridePath.Trim());
     }
 
     /// <inheritdoc />
