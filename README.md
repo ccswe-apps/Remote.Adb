@@ -55,10 +55,10 @@ untested (best-effort).
 - An **OpenSSH client** (`ssh`) on your `PATH` (the built-in Windows OpenSSH is fine).
 - **Key-based SSH access to the remote host that works non-interactively.** The tunnel runs `ssh`
   in `BatchMode` — it will not answer a password or passphrase prompt — so load your key into an
-  ssh-agent (or use a passphraseless key). Verify with `ssh <host> echo ok` returning without a
-  prompt. A first-seen host key is trusted automatically (`StrictHostKeyChecking=accept-new`).
+  ssh-agent (or use a passphraseless key); [Troubleshooting](#troubleshooting) shows how to check it. A first-seen
+  host key is trusted automatically (`StrictHostKeyChecking=accept-new`).
 - On the **remote host**: `ssh`, `pkill`, and the dev-side `adb` client (the side that connects
-  through the tunnel).
+  through the tunnel) — the **same platform-tools version** as your local `adb`.
 
 ## Install & run
 
@@ -95,8 +95,10 @@ dotnet run --project src/Remote.Adb.Console -- tunnel
 
 ### Desktop
 
-- **Tunnel** — enter the remote host (and, if needed, the remote/local ports), then **Connect**. Toggle
-  *Connect automatically at launch* to have the tunnel come up with the app. The status card shows the live state (and the real `ssh` error if it can't connect),
+- **Tunnel** — enter the remote host (and, if needed, the remote/local ports), then **Connect**. The local port must
+  match your local `adb` server's port — 5037 unless you set `ANDROID_ADB_SERVER_PORT`. *Connect automatically at
+  launch* is on by default, so once a host is saved the tunnel comes up with the app; turn it off to connect by
+  hand. The status card shows the live state (and the real `ssh` error if it can't connect),
   and a **Restart adb** action bounces the local `adb` server without dropping the tunnel.
 - **Devices** — your AVDs with their running state (start/stop/create/edit/delete) and the physical devices `adb`
   currently sees, in one list auto-refreshed while the page is open.
@@ -127,9 +129,9 @@ dotnet run --project src/Remote.Adb.Console -- tunnel
 
 App settings (the remote host and ports, SDK/JDK/AVD-home overrides, theme/density, the log panel's state, remembered
 wireless addresses) are persisted to `Remote.Adb/settings.json` under your app-data folder
-(`%APPDATA%` on Windows, `~/.config` on Linux). Set the `REMOTE_ADB_SETTINGS` environment variable to a file path to
-use a different settings file instead — handy for trying things out without touching your real settings (the
-desktop app and the console both honor it).
+(`%APPDATA%` on Windows; `~/.config` on Linux and macOS, or `$XDG_CONFIG_HOME` when set). Set the
+`REMOTE_ADB_SETTINGS` environment variable to a file path to use a different settings file instead — handy for trying
+things out without touching your real settings (the desktop app and the console both honor it).
 
 ### Console
 
@@ -150,6 +152,22 @@ dotnet run --project src/Remote.Adb.Console -- wireless enable R58M123ABC     # 
 
 Run the console with no arguments for the full command list. Add `--verbose` to any command to print each tool it
 runs and that tool's output.
+
+### Troubleshooting
+
+Start with the desktop app's **log panel** (click the status bar): it shows every `adb`/`ssh`/`emulator` command the
+app ran with its exit code and output, including the real `ssh` error. The console's `--verbose` prints the same.
+
+- **The tunnel won't connect.** The tunnel's `ssh` can't answer prompts, so check that `ssh <host> echo ok` prints
+  `ok` without asking for a password or passphrase. Make sure the tunnel's local port matches your local `adb`
+  server's port (5037 unless `ANDROID_ADB_SERVER_PORT` is set).
+- **The remote `adb` can't use the forwarded server** (it reports that the server version doesn't match the client
+  and tries to restart it). The remote `adb` must be the same platform-tools version as the local one: a mismatched
+  client asks the server to `kill-server`, and the app's server refuses — that refusal is what keeps your local
+  devices from being dropped. Update platform-tools on whichever side is older.
+- **No wireless devices are discovered.** mDNS discovery needs this computer on the same LAN as the phone, with
+  UDP port 5353 allowed for `adb` through the firewall. You can still connect by `ip:port`.
+- **Windows SmartScreen blocks the app** — expected for an unsigned build; see [Install & run](#install--run).
 
 ---
 
@@ -187,7 +205,8 @@ dotnet test src/Remote.Adb.slnx
 All functionality lives in **`Remote.Adb.Core`**; the desktop GUI and console are thin front-ends that
 compose a DI service provider (`AddRemoteAdbCore()`) and drive the same services. Core and Desktop are
 organized **feature-first** (Core: `Adb/`, `Diagnostics/`, `Emulators/`, `Logging/`, `Settings/`, `Tunnel/`; Desktop:
-`Devices/`, `Logging/`, `Settings/`, `Shell/`, `Theming/`, `Tunnel/`), with `Common/` for cross-feature plumbing.
+`Devices/`, `Logging/`, `Settings/`, `Shell/`, `Theming/`, `Tunnel/`), with `Common/` for cross-feature plumbing and
+Desktop's `Assets/` (app icon) and `Themes/` (shared XAML resources).
 
 Logging goes through `ILogger<T>` everywhere. The desktop host adds an in-memory `ILogStore` provider
 (`AddRemoteAdbLogStore()`) that the status bar and log panel read; `ProcessRunner` logs every external command it
