@@ -6,7 +6,7 @@ using Remote.Adb.Core.Logging;
 namespace Remote.Adb.Core.Common;
 
 /// <inheritdoc />
-public sealed class ProcessRunner : IProcessRunner
+internal sealed class ProcessRunner : IProcessRunner
 {
     // Large outputs (e.g. sdkmanager --list) are clipped in the log; callers still receive the full text.
     internal const int MaxLoggedOutputLength = 4096;

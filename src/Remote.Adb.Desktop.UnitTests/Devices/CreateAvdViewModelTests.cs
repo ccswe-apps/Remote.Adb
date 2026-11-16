@@ -10,9 +10,9 @@ namespace Remote.Adb.Desktop.UnitTests.Devices;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public class CreateAvdViewModelTests
 {
-    protected Mock<INotificationService> Notifications = null!;
-    protected Mock<IAvdProvisioningService> Provisioning = null!;
-    protected Mock<IAvdConfigStore> Store = null!;
+    private protected Mock<INotificationService> Notifications = null!;
+    private protected Mock<IAvdProvisioningService> Provisioning = null!;
+    private protected Mock<IAvdConfigStore> Store = null!;
 
     [SetUp]
     public void SetUp()
@@ -29,13 +29,13 @@ public class CreateAvdViewModelTests
         Notifications = new Mock<INotificationService>();
     }
 
-    protected static AvdConfiguration Configuration(string avdId) =>
+    private protected static AvdConfiguration Configuration(string avdId) =>
         new(avdId, IniParser.Parse(string.Empty), null);
 
-    protected CreateAvdViewModel CreateViewModel() => new(Provisioning.Object, Store.Object, Notifications.Object);
+    private protected CreateAvdViewModel CreateViewModel() => new(Provisioning.Object, Store.Object, Notifications.Object);
 
     // A wizard primed past validation: a valid name plus a selected device and image.
-    protected CreateAvdViewModel CreateReadyViewModel()
+    private protected CreateAvdViewModel CreateReadyViewModel()
     {
         var viewModel = CreateViewModel();
         viewModel.Name = "Pixel_6";
@@ -150,7 +150,7 @@ public class CreateAvdViewModelTests
         }
     }
 
-    protected static StrongBox<bool?> TrackClose(CreateAvdViewModel viewModel)
+    private protected static StrongBox<bool?> TrackClose(CreateAvdViewModel viewModel)
     {
         var closed = new StrongBox<bool?>(null);
         viewModel.CloseRequested += result => closed.Value = result;

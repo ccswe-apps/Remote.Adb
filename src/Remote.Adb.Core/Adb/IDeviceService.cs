@@ -1,8 +1,11 @@
+using JetBrains.Annotations;
+
 namespace Remote.Adb.Core.Adb;
 
 /// <summary>
 /// Lists the devices the local adb server currently sees (<c>adb devices -l</c>).
 /// </summary>
+[PublicAPI]
 public interface IDeviceService
 {
     /// <summary>Returns the currently attached devices, in adb's reported order.</summary>

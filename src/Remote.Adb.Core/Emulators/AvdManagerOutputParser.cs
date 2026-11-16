@@ -6,7 +6,7 @@ namespace Remote.Adb.Core.Emulators;
 /// Parses <c>avdmanager</c> text output. Pure and I/O-free, mirroring <see cref="AdbOutputParser"/> /
 /// <see cref="EmulatorOutputParser"/>.
 /// </summary>
-public static class AvdManagerOutputParser
+internal static class AvdManagerOutputParser
 {
     /// <summary>
     /// Parses <c>avdmanager list device</c> into device profiles. Each block looks like

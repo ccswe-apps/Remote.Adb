@@ -5,7 +5,7 @@ namespace Remote.Adb.Core.Common;
 /// its exit can be awaited, unlike the fire-and-forget <see cref="IProcessRunner.Start"/>. Disposing kills
 /// the process tree if it is still running.
 /// </summary>
-public interface IProcessSession : IAsyncDisposable
+internal interface IProcessSession : IAsyncDisposable
 {
     /// <summary>Whether the process has exited.</summary>
     bool HasExited { get; }

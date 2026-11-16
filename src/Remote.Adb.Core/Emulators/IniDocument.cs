@@ -1,13 +1,19 @@
+using JetBrains.Annotations;
+
 namespace Remote.Adb.Core.Emulators;
 
 /// <summary>
 /// An ordered, parsed INI file. Preserves every line (comments, blanks, unknown keys) so an edit can
 /// rewrite the keys it cares about and re-emit the rest unchanged. Built by <see cref="IniParser"/>.
 /// </summary>
+[PublicAPI]
 public sealed class IniDocument
 {
     private readonly IReadOnlyList<IniLine> _lines;
 
+    /// <summary>Creates a document from its parsed lines.</summary>
+    /// <param name="lines">Every line, in order (comments and blanks included, so a save round-trips them).</param>
+    /// <param name="trailingNewline">Whether the source ended with a newline.</param>
     public IniDocument(IReadOnlyList<IniLine> lines, bool trailingNewline)
     {
         _lines = lines;

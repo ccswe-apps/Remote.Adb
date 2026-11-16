@@ -7,7 +7,7 @@ namespace Remote.Adb.Desktop.UnitTests.Common.Notifications;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public class NotificationServiceTests
 {
-    protected static NotificationService CreateService() => new();
+    private protected static NotificationService CreateService() => new();
 
     public class When_Show_Is_Called_Before_A_Sink_Is_Attached : NotificationServiceTests
     {

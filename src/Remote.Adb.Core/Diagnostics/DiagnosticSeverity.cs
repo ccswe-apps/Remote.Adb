@@ -1,6 +1,9 @@
+using JetBrains.Annotations;
+
 namespace Remote.Adb.Core.Diagnostics;
 
 /// <summary>The severity of a <see cref="ToolDiagnostic"/>.</summary>
+[PublicAPI]
 public enum DiagnosticSeverity
 {
     /// <summary>The tool resolved only by guessing (a default or ambient fallback) — it may be wrong.</summary>

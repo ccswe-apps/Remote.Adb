@@ -5,7 +5,7 @@ namespace Remote.Adb.Core.Common;
 /// <summary>
 /// Runs external command-line tools (adb, emulator, ssh, ...).
 /// </summary>
-public interface IProcessRunner
+internal interface IProcessRunner
 {
     /// <summary>
     /// Runs <paramref name="fileName"/> to completion and captures its output. When

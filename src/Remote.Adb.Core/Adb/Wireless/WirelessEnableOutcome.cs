@@ -1,6 +1,9 @@
+using JetBrains.Annotations;
+
 namespace Remote.Adb.Core.Adb.Wireless;
 
 /// <summary>How switching a USB device to Wi-Fi debugging (<c>adb tcpip</c> then <c>adb connect</c>) ended.</summary>
+[PublicAPI]
 public enum WirelessEnableOutcome
 {
     /// <summary>The device is in TCP mode and connected over Wi-Fi; it can be unplugged.</summary>

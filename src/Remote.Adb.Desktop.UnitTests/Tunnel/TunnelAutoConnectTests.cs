@@ -11,8 +11,8 @@ namespace Remote.Adb.Desktop.UnitTests.Tunnel;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public class TunnelAutoConnectTests
 {
-    protected Mock<ISettingsService> Settings = null!;
-    protected Mock<ITunnelService> Tunnel = null!;
+    private protected Mock<ISettingsService> Settings = null!;
+    private protected Mock<ITunnelService> Tunnel = null!;
 
     [SetUp]
     public void SetUp()

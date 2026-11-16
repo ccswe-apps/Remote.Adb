@@ -1,21 +1,20 @@
 using System.Diagnostics.CodeAnalysis;
 using Moq;
-using NUnit.Framework;
 using Remote.Adb.Core.Adb.Wireless;
 using Remote.Adb.Core.Common;
 using Remote.Adb.Core.Settings;
-using Remote.Adb.Core.UnitTests.Fakes;
+using Remote.Adb.Testing;
 
 namespace Remote.Adb.Core.UnitTests.Adb.Wireless;
 
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public class WirelessAdbServiceTests
 {
-    protected const string Guid = "adb-R58M123ABC-AbCdEf";
+    private protected const string Guid = "adb-R58M123ABC-AbCdEf";
 
-    protected AdbRunnerMock Adb = null!;
-    protected List<string> Saved = null!;
-    protected Mock<ISettingsService> Settings = null!;
+    private protected AdbRunnerMock Adb = null!;
+    private protected List<string> Saved = null!;
+    private protected Mock<ISettingsService> Settings = null!;
 
     [SetUp]
     public void SetUp()
@@ -28,7 +27,7 @@ public class WirelessAdbServiceTests
             .Callback<IReadOnlyList<string>>(value => Saved = [.. value]);
     }
 
-    protected WirelessAdbService CreateService() =>
+    private protected WirelessAdbService CreateService() =>
         new(Adb.Object, Settings.Object, new LoggerFake<WirelessAdbService>())
         {
             EnableConnectTimeout = TimeSpan.FromMilliseconds(100),

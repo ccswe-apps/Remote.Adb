@@ -1,3 +1,5 @@
+using JetBrains.Annotations;
+
 namespace Remote.Adb.Core.Emulators;
 
 /// <summary>
@@ -5,4 +7,5 @@ namespace Remote.Adb.Core.Emulators;
 /// round-trip verbatim; <paramref name="Key"/>/<paramref name="Value"/> are set only for
 /// <see cref="IniLineKind.Pair"/> lines.
 /// </summary>
+[PublicAPI]
 public sealed record IniLine(IniLineKind Kind, string? Key, string? Value, string Raw);

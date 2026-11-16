@@ -7,7 +7,7 @@ namespace Remote.Adb.Desktop.UnitTests.Common;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public class PeriodicRefresherTests
 {
-    protected FakeTimerFactory TimerFactory = null!;
+    private protected FakeTimerFactory TimerFactory = null!;
 
     [SetUp]
     public void SetUp()

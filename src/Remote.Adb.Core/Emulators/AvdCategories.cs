@@ -1,3 +1,5 @@
+using JetBrains.Annotations;
+
 namespace Remote.Adb.Core.Emulators;
 
 /// <summary>
@@ -5,6 +7,7 @@ namespace Remote.Adb.Core.Emulators;
 /// phones/tablets). A device is only compatible with images in the same category — used by the create wizard
 /// to filter the image list to the selected device.
 /// </summary>
+[PublicAPI]
 public static class AvdCategories
 {
     /// <summary>The category for a device or image tag (e.g. <c>android-tv</c> → "tv", <c>null</c> → "general").</summary>

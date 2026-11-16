@@ -1,5 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-using NUnit.Framework;
 using Remote.Adb.Core.Adb.Wireless;
 
 namespace Remote.Adb.Core.UnitTests.Adb.Wireless;

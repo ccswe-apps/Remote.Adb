@@ -8,7 +8,7 @@ namespace Remote.Adb.Core.Adb;
 /// <c>kill-server</c> sent through the SSH tunnel by a version-mismatched remote adb. Services must not run adb via
 /// <see cref="IProcessRunner"/> directly (a test guards this).
 /// </summary>
-public interface IAdbRunner
+internal interface IAdbRunner
 {
     /// <summary>The environment variables applied to every adb invocation.</summary>
     IReadOnlyDictionary<string, string> EnvironmentOverrides { get; }

@@ -4,7 +4,7 @@ namespace Remote.Adb.Core.Logging;
 
 /// <summary>Routes application logging into the shared <see cref="LogStore"/>.</summary>
 [ProviderAlias("LogStore")]
-public sealed class LogStoreLoggerProvider : ILoggerProvider
+internal sealed class LogStoreLoggerProvider : ILoggerProvider
 {
     private readonly LogStore _store;
 

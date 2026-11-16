@@ -1,6 +1,9 @@
+using JetBrains.Annotations;
+
 namespace Remote.Adb.Core.Adb.Wireless;
 
 /// <summary>The adb mDNS service types a device can advertise.</summary>
+[PublicAPI]
 public enum MdnsServiceType
 {
     /// <summary><c>_adb-tls-connect._tcp</c> — a paired Android 11+ device's connect port.</summary>

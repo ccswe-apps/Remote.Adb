@@ -1,6 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
-using NUnit.Framework;
 using Remote.Adb.Core.Logging;
 
 namespace Remote.Adb.Core.UnitTests.Logging;
@@ -8,7 +7,7 @@ namespace Remote.Adb.Core.UnitTests.Logging;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public class LogStoreTests
 {
-    protected static void Add(LogStore store, string message) =>
+    private protected static void Add(LogStore store, string message) =>
         store.Add(LogLevel.Information, "Category", default, message, null);
 
     public class When_Add_Is_Called : LogStoreTests

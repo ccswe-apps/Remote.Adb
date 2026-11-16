@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using JetBrains.Annotations;
 
 namespace Remote.Adb.Core.Common;
 
@@ -6,6 +7,7 @@ namespace Remote.Adb.Core.Common;
 /// Maps an Android API level to its marketing version and codename (e.g. 36 → "Android 16 (Baklava)"). Used to
 /// label system images and AVDs more recognizably than the bare level.
 /// </summary>
+[PublicAPI]
 public static class AndroidApiLevels
 {
     // Dessert/food codename per API level, where one is well-known. Android 10–12L (29–32) dropped public

@@ -9,7 +9,7 @@ namespace Remote.Adb.Core.Emulators;
 /// in the user's <c>devices.xml</c>) into <see cref="DeviceProfile"/>s with screen specs. Matches by element
 /// local name so it's tolerant of the schema's namespace/version. Pure and I/O-free.
 /// </summary>
-public static class DeviceDefinitionParser
+internal static class DeviceDefinitionParser
 {
     public static IReadOnlyList<DeviceProfile> Parse(string xml)
     {

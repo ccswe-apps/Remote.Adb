@@ -1,6 +1,5 @@
 using System.Collections.Frozen;
 using System.Diagnostics.CodeAnalysis;
-using NUnit.Framework;
 
 namespace Remote.Adb.Core.UnitTests.Adb;
 

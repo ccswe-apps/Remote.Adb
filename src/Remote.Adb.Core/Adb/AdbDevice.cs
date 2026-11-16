@@ -1,3 +1,5 @@
+using JetBrains.Annotations;
+
 namespace Remote.Adb.Core.Adb;
 
 /// <summary>
@@ -5,6 +7,7 @@ namespace Remote.Adb.Core.Adb;
 /// (<c>device</c>, <c>offline</c>, <c>unauthorized</c>, …); the descriptive columns are only present for
 /// devices in the online <c>device</c> state.
 /// </summary>
+[PublicAPI]
 public sealed record AdbDevice(string Serial, string State, string? Model, string? Product, string? Device, string? TransportId)
 {
     /// <summary>The system image ABI (e.g. <c>arm64-v8a</c>), resolved from the device's properties.</summary>

@@ -13,11 +13,11 @@ namespace Remote.Adb.Desktop.UnitTests.Tunnel;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public class TunnelViewModelTests
 {
-    protected Mock<IAdbServerService> AdbServer = null!;
-    protected Mock<INotificationService> Notifications = null!;
-    protected Mock<ISettingsService> Settings = null!;
-    protected TunnelStatus Status = null!;
-    protected Mock<ITunnelService> Tunnel = null!;
+    private protected Mock<IAdbServerService> AdbServer = null!;
+    private protected Mock<INotificationService> Notifications = null!;
+    private protected Mock<ISettingsService> Settings = null!;
+    private protected TunnelStatus Status = null!;
+    private protected Mock<ITunnelService> Tunnel = null!;
 
     [SetUp]
     public void SetUp()
@@ -34,7 +34,7 @@ public class TunnelViewModelTests
         Settings = new Mock<ISettingsService>();
     }
 
-    protected TunnelViewModel CreateViewModel(string? host = "devhost")
+    private protected TunnelViewModel CreateViewModel(string? host = "devhost")
     {
         Settings.SetupGet(s => s.TunnelHost).Returns(host);
         Settings.SetupGet(s => s.TunnelRemotePort).Returns(5037);

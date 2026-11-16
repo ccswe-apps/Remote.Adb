@@ -12,10 +12,10 @@ namespace Remote.Adb.Desktop.UnitTests.Shell;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public class StatusBarViewModelTests
 {
-    protected Mock<ISettingsService> Settings = null!;
-    protected LogStore Store = null!;
-    protected Mock<ITunnelService> Tunnel = null!;
-    protected TunnelStatus TunnelStatus = null!;
+    private protected Mock<ISettingsService> Settings = null!;
+    private protected LogStore Store = null!;
+    private protected Mock<ITunnelService> Tunnel = null!;
+    private protected TunnelStatus TunnelStatus = null!;
 
     [SetUp]
     public void SetUp()
@@ -28,9 +28,9 @@ public class StatusBarViewModelTests
         Settings.Setup(settings => settings.TunnelHost).Returns("devbox");
     }
 
-    protected StatusBarViewModel CreateViewModel() => new(Store, Tunnel.Object, Settings.Object, new FakeUiDispatcher());
+    private protected StatusBarViewModel CreateViewModel() => new(Store, Tunnel.Object, Settings.Object, new FakeUiDispatcher());
 
-    protected void LogCompleted(string command, int exitCode, long elapsedMilliseconds) =>
+    private protected void LogCompleted(string command, int exitCode, long elapsedMilliseconds) =>
         Store.Add(
             exitCode == 0 ? LogLevel.Information : LogLevel.Warning,
             "Remote.Adb.Core.Common.ProcessRunner",
@@ -44,7 +44,7 @@ public class StatusBarViewModelTests
                 [LogEvents.ElapsedMillisecondsProperty] = elapsedMilliseconds,
             });
 
-    protected void SetTunnel(TunnelState state, string? message = null)
+    private protected void SetTunnel(TunnelState state, string? message = null)
     {
         TunnelStatus = new TunnelStatus(state, message);
         Tunnel.Raise(tunnel => tunnel.StatusChanged += null, Tunnel.Object, TunnelStatus);

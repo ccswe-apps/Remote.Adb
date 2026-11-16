@@ -4,7 +4,7 @@ using Remote.Adb.Core.Common;
 namespace Remote.Adb.Core.Emulators;
 
 /// <inheritdoc />
-public sealed class AvdProvisioningService : IAvdProvisioningService
+internal sealed class AvdProvisioningService : IAvdProvisioningService
 {
     // avdmanager create avd prompts "Do you wish to create a custom hardware profile? [no]"; answering keeps
     // the device profile's hardware and lets the process exit instead of blocking on stdin.

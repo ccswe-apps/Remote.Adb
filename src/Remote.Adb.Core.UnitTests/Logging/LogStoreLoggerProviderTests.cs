@@ -1,6 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
-using NUnit.Framework;
 using Remote.Adb.Core.Logging;
 
 namespace Remote.Adb.Core.UnitTests.Logging;

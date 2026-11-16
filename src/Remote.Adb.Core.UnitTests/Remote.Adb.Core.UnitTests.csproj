@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
@@ -19,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Remote.Adb.Core\Remote.Adb.Core.csproj" />
+    <ProjectReference Include="..\Remote.Adb.Testing\Remote.Adb.Testing.csproj" />
   </ItemGroup>
 
 </Project>

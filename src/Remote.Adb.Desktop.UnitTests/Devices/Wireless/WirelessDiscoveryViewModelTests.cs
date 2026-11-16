@@ -9,12 +9,12 @@ namespace Remote.Adb.Desktop.UnitTests.Devices.Wireless;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public class WirelessDiscoveryViewModelTests
 {
-    protected static readonly MdnsService ConnectService = new("adb-R58M-AbCd", MdnsServiceType.Connect, "192.168.1.20", 41235);
-    protected static readonly MdnsService LegacyService = new("adb-legacy", MdnsServiceType.Legacy, "192.168.1.30", 5555);
-    protected static readonly MdnsService PairingService = new("adb-R58M-AbCd", MdnsServiceType.Pairing, "192.168.1.20", 37123);
+    private protected static readonly MdnsService ConnectService = new("adb-R58M-AbCd", MdnsServiceType.Connect, "192.168.1.20", 41235);
+    private protected static readonly MdnsService LegacyService = new("adb-legacy", MdnsServiceType.Legacy, "192.168.1.30", 5555);
+    private protected static readonly MdnsService PairingService = new("adb-R58M-AbCd", MdnsServiceType.Pairing, "192.168.1.20", 37123);
 
-    protected FakeTimerFactory TimerFactory = null!;
-    protected Mock<IWirelessAdbService> Wireless = null!;
+    private protected FakeTimerFactory TimerFactory = null!;
+    private protected Mock<IWirelessAdbService> Wireless = null!;
 
     [SetUp]
     public void SetUp()
@@ -27,7 +27,7 @@ public class WirelessDiscoveryViewModelTests
             .ReturnsAsync(new[] { PairingService, ConnectService, LegacyService });
     }
 
-    protected WirelessDiscoveryViewModel CreateViewModel() => new(Wireless.Object, TimerFactory);
+    private protected WirelessDiscoveryViewModel CreateViewModel() => new(Wireless.Object, TimerFactory);
 
     public class When_StartAsync_Is_Called : WirelessDiscoveryViewModelTests
     {

@@ -1,3 +1,5 @@
+using JetBrains.Annotations;
+
 
 namespace Remote.Adb.Core.Settings;
 
@@ -5,6 +7,7 @@ namespace Remote.Adb.Core.Settings;
 /// Stores user-configurable application settings. Shared by both front-ends so a setting
 /// changed in one place is observed everywhere.
 /// </summary>
+[PublicAPI]
 public interface ISettingsService
 {
     /// <summary>Override for the AVD home directory, or <see langword="null"/> to use env-var/default resolution.</summary>

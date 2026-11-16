@@ -1,8 +1,11 @@
+using JetBrains.Annotations;
+
 namespace Remote.Adb.Core.Common;
 
 /// <summary>
 /// Resolves the locations of the Android SDK command-line tools.
 /// </summary>
+[PublicAPI]
 public interface IAndroidSdk
 {
     /// <summary>Path to the <c>adb</c> executable.</summary>

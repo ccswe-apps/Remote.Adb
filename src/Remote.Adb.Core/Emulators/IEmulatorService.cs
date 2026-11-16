@@ -1,9 +1,12 @@
+using JetBrains.Annotations;
+
 
 namespace Remote.Adb.Core.Emulators;
 
 /// <summary>
 /// Lists, starts, and stops Android emulators (AVDs).
 /// </summary>
+[PublicAPI]
 public interface IEmulatorService
 {
     /// <summary>

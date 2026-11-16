@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace Remote.Adb.Core.UnitTests.Fakes;
+namespace Remote.Adb.Testing;
 
 /// <summary>
 /// A no-op <see cref="ILogger{T}"/> for tests that don't assert on logging.

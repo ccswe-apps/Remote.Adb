@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 namespace Remote.Adb.Core.Settings;
 
 /// <inheritdoc />
-public sealed class SettingsStore : ISettingsStore
+internal sealed class SettingsStore : ISettingsStore
 {
     /// <summary>
     /// The environment variable that, when set, points the app at a different settings file — e.g. a scratch file for

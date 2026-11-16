@@ -1,3 +1,4 @@
+using JetBrains.Annotations;
 using Microsoft.Extensions.Logging;
 
 namespace Remote.Adb.Core.Logging;
@@ -7,6 +8,7 @@ namespace Remote.Adb.Core.Logging;
 /// monotonically, so a reader can de-duplicate a snapshot against entries it also received as events.
 /// <see cref="Properties"/> holds the structured values of a templated message (e.g. a command's <c>ExitCode</c>).
 /// </summary>
+[PublicAPI]
 public sealed record LogEntry(
     long Sequence,
     DateTimeOffset Timestamp,

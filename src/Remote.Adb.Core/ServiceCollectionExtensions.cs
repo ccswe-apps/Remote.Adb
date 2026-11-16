@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+using JetBrains.Annotations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Remote.Adb.Core.Adb;
@@ -13,8 +15,13 @@ namespace Remote.Adb.Core;
 /// <summary>
 /// Registers the shared <c>Remote.Adb.Core</c> services so both front-ends wire up identically.
 /// </summary>
+[ExcludeFromCodeCoverage]
+[PublicAPI]
 public static class ServiceCollectionExtensions
 {
+    /// <summary>Registers every Core service both front-ends resolve.</summary>
+    /// <param name="services">The service collection to add to.</param>
+    /// <returns><paramref name="services"/>, for chaining.</returns>
     public static IServiceCollection AddRemoteAdbCore(this IServiceCollection services)
     {
         services.AddSingleton<IProcessRunner, ProcessRunner>();

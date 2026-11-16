@@ -4,7 +4,7 @@ namespace Remote.Adb.Core.Settings;
 /// <see cref="ISettingsService"/> backed by an <see cref="ISettingsStore"/>: the persisted model is loaded
 /// once on construction and re-saved whenever a setting changes.
 /// </summary>
-public sealed class SettingsService : ISettingsService
+internal sealed class SettingsService : ISettingsService
 {
     private readonly SettingsModel _model;
     private readonly ISettingsStore _store;

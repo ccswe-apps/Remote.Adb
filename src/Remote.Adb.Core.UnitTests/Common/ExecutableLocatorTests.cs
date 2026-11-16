@@ -1,5 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-using NUnit.Framework;
 using Remote.Adb.Core.Common;
 
 namespace Remote.Adb.Core.UnitTests.Common;

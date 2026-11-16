@@ -6,7 +6,7 @@ namespace Remote.Adb.Core.Emulators;
 /// change only the fields it understands without corrupting the rest of an AVD's <c>config.ini</c>.
 /// Output newlines are normalized to <c>\n</c>.
 /// </summary>
-public static class AvdConfigWriter
+internal static class AvdConfigWriter
 {
     /// <summary>
     /// Returns the document's text with each key in <paramref name="changes"/> set to its new value — updated

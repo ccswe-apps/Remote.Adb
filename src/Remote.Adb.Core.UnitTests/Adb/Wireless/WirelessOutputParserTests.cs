@@ -1,5 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-using NUnit.Framework;
 using Remote.Adb.Core.Adb.Wireless;
 using Remote.Adb.Core.Common;
 
@@ -8,7 +7,7 @@ namespace Remote.Adb.Core.UnitTests.Adb.Wireless;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public class WirelessOutputParserTests
 {
-    protected static ProcessResult Output(string stdout, int exitCode = 0, string stderr = "") => new(exitCode, stdout, stderr);
+    private protected static ProcessResult Output(string stdout, int exitCode = 0, string stderr = "") => new(exitCode, stdout, stderr);
 
     public class When_ParseConnect_Is_Called : WirelessOutputParserTests
     {

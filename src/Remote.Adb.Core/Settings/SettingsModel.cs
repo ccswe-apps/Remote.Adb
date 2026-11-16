@@ -8,7 +8,7 @@ namespace Remote.Adb.Core.Settings;
 /// separate from <see cref="ISettingsService"/> so the file schema and the service surface can evolve
 /// independently. Add a new setting by adding a property here (with a default) plus a member on the service.
 /// </summary>
-public sealed class SettingsModel
+internal sealed class SettingsModel
 {
     /// <summary>Override for the AVD home directory; <see langword="null"/> uses the env-var/default resolution.</summary>
     public string? AvdHome { get; set; }

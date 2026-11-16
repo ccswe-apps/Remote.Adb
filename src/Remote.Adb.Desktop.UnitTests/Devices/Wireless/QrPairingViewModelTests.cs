@@ -9,11 +9,11 @@ namespace Remote.Adb.Desktop.UnitTests.Devices.Wireless;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public class QrPairingViewModelTests
 {
-    protected PairingCodeViewModel CodeForm = null!;
-    protected WirelessDiscoveryViewModel Discovery = null!;
-    protected List<WirelessPairResult> Paired = null!;
-    protected FakeTimerFactory TimerFactory = null!;
-    protected Mock<IWirelessAdbService> Wireless = null!;
+    private protected PairingCodeViewModel CodeForm = null!;
+    private protected WirelessDiscoveryViewModel Discovery = null!;
+    private protected List<WirelessPairResult> Paired = null!;
+    private protected FakeTimerFactory TimerFactory = null!;
+    private protected Mock<IWirelessAdbService> Wireless = null!;
 
     [SetUp]
     public void SetUp()
@@ -28,9 +28,9 @@ public class QrPairingViewModelTests
     }
 
     // The regenerate timer is the second one created (discovery's poller is the first).
-    protected FakeDispatcherTimer RegenerateTimer => TimerFactory.Timers[1];
+    private protected FakeDispatcherTimer RegenerateTimer => TimerFactory.Timers[1];
 
-    protected QrPairingViewModel CreateViewModel()
+    private protected QrPairingViewModel CreateViewModel()
     {
         var viewModel = new QrPairingViewModel(Wireless.Object, Discovery, CodeForm, TimerFactory);
         viewModel.Paired += Paired.Add;
@@ -38,7 +38,7 @@ public class QrPairingViewModelTests
     }
 
     // The device scanned the code: discovery now reports a pairing service named after it.
-    protected async Task DeviceScansAsync(QrPairingViewModel viewModel)
+    private protected async Task DeviceScansAsync(QrPairingViewModel viewModel)
     {
         Wireless
             .Setup(wireless => wireless.DiscoverAsync(It.IsAny<CancellationToken>()))

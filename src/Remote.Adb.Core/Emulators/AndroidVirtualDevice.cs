@@ -1,3 +1,5 @@
+using JetBrains.Annotations;
+
 namespace Remote.Adb.Core.Emulators;
 
 /// <summary>
@@ -10,4 +12,5 @@ namespace Remote.Adb.Core.Emulators;
 /// <param name="Serial">The adb serial (e.g. <c>emulator-5554</c>) when running; otherwise <see langword="null"/>.</param>
 /// <param name="ApiLevel">The system image API level (e.g. 34), or <see langword="null"/> if unknown.</param>
 /// <param name="Abi">The system image ABI (e.g. <c>x86_64</c>), or <see langword="null"/> if unknown.</param>
+[PublicAPI]
 public sealed record AndroidVirtualDevice(string Name, string DisplayName, string? Tag, bool IsRunning, string? Serial, int? ApiLevel = null, string? Abi = null);

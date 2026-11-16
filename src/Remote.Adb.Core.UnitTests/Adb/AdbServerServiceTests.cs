@@ -2,24 +2,23 @@ using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Sockets;
 using Moq;
-using NUnit.Framework;
 using Remote.Adb.Core.Adb;
-using Remote.Adb.Core.UnitTests.Fakes;
+using Remote.Adb.Testing;
 
 namespace Remote.Adb.Core.UnitTests.Adb;
 
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public class AdbServerServiceTests
 {
-    protected AdbRunnerMock Adb = null!;
-    protected TcpListener? Listener;
-    protected Mock<IAdbServerProcesses> ServerProcesses = null!;
+    private protected AdbRunnerMock Adb = null!;
+    private protected TcpListener? Listener;
+    private protected Mock<IAdbServerProcesses> ServerProcesses = null!;
 
-    protected AdbServerService CreateService() => new(Adb.Object, ServerProcesses.Object, new LoggerFake<AdbServerService>());
+    private protected AdbServerService CreateService() => new(Adb.Object, ServerProcesses.Object, new LoggerFake<AdbServerService>());
 
     // Reserves a free loopback port and points the runner's ServerPort at it; `listening` decides whether the port is
     // left bound (a running server) or released again (nothing listening).
-    protected void ServerListening(bool listening)
+    private protected void ServerListening(bool listening)
     {
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();

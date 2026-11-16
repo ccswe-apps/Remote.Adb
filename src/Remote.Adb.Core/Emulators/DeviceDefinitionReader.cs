@@ -8,7 +8,7 @@ namespace Remote.Adb.Core.Emulators;
 /// <c>tools/lib/devices.xml</c>, and the user's <c>devices.xml</c>. Returns the merged, parsed list with
 /// screen specs — far richer than <c>avdmanager list device</c>. Best-effort and I/O-tolerant.
 /// </summary>
-public static class DeviceDefinitionReader
+internal static class DeviceDefinitionReader
 {
     /// <summary>Reads and merges every available device-definition source under <paramref name="sdkRoot"/>.</summary>
     public static IReadOnlyList<DeviceProfile> Read(string? sdkRoot)

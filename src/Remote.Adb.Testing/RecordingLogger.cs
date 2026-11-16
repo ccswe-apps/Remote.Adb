@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace Remote.Adb.Core.UnitTests.Fakes;
+namespace Remote.Adb.Testing;
 
 /// <summary>An <see cref="ILogger{T}"/> that records every message at or above <see cref="MinimumLevel"/>.</summary>
 public sealed class RecordingLogger<T> : ILogger<T>
@@ -21,6 +21,3 @@ public sealed class RecordingLogger<T> : ILogger<T>
         }
     }
 }
-
-/// <summary>One message captured by <see cref="RecordingLogger{T}"/>.</summary>
-public sealed record RecordedLog(LogLevel Level, EventId EventId, string Message, Exception? Exception);

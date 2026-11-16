@@ -1,3 +1,5 @@
+using JetBrains.Annotations;
+
 namespace Remote.Adb.Core.Tunnel;
 
 /// <summary>
@@ -5,6 +7,7 @@ namespace Remote.Adb.Core.Tunnel;
 /// (<c>ssh -o ExitOnForwardFailure=yes -N -R &lt;remote&gt;:127.0.0.1:&lt;local&gt; host</c>), handling the
 /// kill-then-bind-then-retry dance the IntelliJ adb-respawn race requires.
 /// </summary>
+[PublicAPI]
 public interface ITunnelService
 {
     /// <summary>The current tunnel status.</summary>

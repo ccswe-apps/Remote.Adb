@@ -8,4 +8,4 @@ namespace Remote.Adb.Core.Emulators;
 /// <param name="Tag">The <c>tag.displaynames</c> device category, or <see langword="null"/>.</param>
 /// <param name="ApiLevel">The system image API level (e.g. 34), or <see langword="null"/>.</param>
 /// <param name="Abi">The system image ABI (e.g. <c>x86_64</c>), or <see langword="null"/>.</param>
-public sealed record AvdMetadata(string AvdId, string DisplayName, string? Tag, int? ApiLevel = null, string? Abi = null);
+internal sealed record AvdMetadata(string AvdId, string DisplayName, string? Tag, int? ApiLevel = null, string? Abi = null);

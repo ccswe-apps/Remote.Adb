@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 namespace Remote.Adb.Core.Adb;
 
 /// <inheritdoc />
-public sealed class AdbServerService : IAdbServerService
+internal sealed class AdbServerService : IAdbServerService
 {
     private readonly IAdbRunner _adb;
     private readonly ILogger<AdbServerService> _logger;

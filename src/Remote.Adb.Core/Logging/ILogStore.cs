@@ -1,9 +1,12 @@
+using JetBrains.Annotations;
+
 namespace Remote.Adb.Core.Logging;
 
 /// <summary>
 /// An in-memory, bounded buffer of the application's recent log output, fed by <see cref="LogStoreLoggerProvider"/>.
 /// Code keeps logging through <c>ILogger&lt;T&gt;</c>; this is the read side for anything that displays the log.
 /// </summary>
+[PublicAPI]
 public interface ILogStore
 {
     /// <summary>

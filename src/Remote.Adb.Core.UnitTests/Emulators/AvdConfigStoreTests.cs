@@ -1,9 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
 using Moq;
-using NUnit.Framework;
 using Remote.Adb.Core.Emulators;
 using Remote.Adb.Core.Settings;
-using Remote.Adb.Core.UnitTests.Fakes;
+using Remote.Adb.Testing;
 
 namespace Remote.Adb.Core.UnitTests.Emulators;
 
@@ -36,9 +35,9 @@ public class AvdConfigStoreTests
     }
 
     // No AvdHome override (default), so resolution falls through to the ANDROID_AVD_HOME set in SetUp.
-    protected static AvdConfigStore CreateStore() => new(Mock.Of<ISettingsService>(), new LoggerFake<AvdConfigStore>());
+    private protected static AvdConfigStore CreateStore() => new(Mock.Of<ISettingsService>(), new LoggerFake<AvdConfigStore>());
 
-    protected string WriteAvd(string folder, string config)
+    private protected string WriteAvd(string folder, string config)
     {
         var directory = Path.Combine(_avdHome, folder + ".avd");
         Directory.CreateDirectory(directory);

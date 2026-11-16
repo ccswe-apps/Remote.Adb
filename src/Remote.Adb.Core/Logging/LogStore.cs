@@ -5,7 +5,7 @@ namespace Remote.Adb.Core.Logging;
 /// <summary>
 /// <see cref="ILogStore"/> backed by a lock-guarded ring buffer: once full, each new entry evicts the oldest.
 /// </summary>
-public sealed class LogStore : ILogStore
+internal sealed class LogStore : ILogStore
 {
     public const int DefaultCapacity = 2000;
 

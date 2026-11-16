@@ -2,12 +2,12 @@ using Moq;
 using Remote.Adb.Core.Adb;
 using Remote.Adb.Core.Common;
 
-namespace Remote.Adb.Core.UnitTests.Fakes;
+namespace Remote.Adb.Testing;
 
 /// <summary>
 /// Wraps a <see cref="Mock{T}"/> of <see cref="IAdbRunner"/> with helpers that match adb invocations by their arguments.
 /// </summary>
-public sealed class AdbRunnerMock
+internal sealed class AdbRunnerMock
 {
     /// <summary>The underlying mock, for setups the helpers don't cover.</summary>
     public Mock<IAdbRunner> Inner { get; } = new();

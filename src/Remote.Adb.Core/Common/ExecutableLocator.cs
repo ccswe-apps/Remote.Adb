@@ -4,7 +4,7 @@ namespace Remote.Adb.Core.Common;
 /// Locates an executable on the <c>PATH</c> — used to detect whether a tool (e.g. <c>java</c>) is available
 /// without launching it.
 /// </summary>
-public static class ExecutableLocator
+internal static class ExecutableLocator
 {
     /// <summary>
     /// Returns the full path to <paramref name="fileName"/> found on <c>PATH</c> (trying the platform's

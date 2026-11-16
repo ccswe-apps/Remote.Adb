@@ -10,8 +10,8 @@ namespace Remote.Adb.Desktop.UnitTests.Logging;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public class LogPanelViewModelTests
 {
-    protected Mock<IClipboardService> Clipboard = null!;
-    protected LogStore Store = null!;
+    private protected Mock<IClipboardService> Clipboard = null!;
+    private protected LogStore Store = null!;
 
     [SetUp]
     public void SetUp()
@@ -20,13 +20,13 @@ public class LogPanelViewModelTests
         Store = new LogStore();
     }
 
-    protected static LogEntry Entry(long sequence, LogLevel level = LogLevel.Information, string message = "message") =>
+    private protected static LogEntry Entry(long sequence, LogLevel level = LogLevel.Information, string message = "message") =>
         new(sequence, DateTimeOffset.Now, level, "Remote.Adb.Tests", default, message, null);
 
-    protected void Log(string message, LogLevel level = LogLevel.Information) =>
+    private protected void Log(string message, LogLevel level = LogLevel.Information) =>
         Store.Add(level, "Remote.Adb.Tests", default, message, null);
 
-    protected static IEnumerable<string> Messages(LogPanelViewModel viewModel) =>
+    private protected static IEnumerable<string> Messages(LogPanelViewModel viewModel) =>
         viewModel.Entries.Select(entry => entry.Entry.Message);
 
     public class When_It_Is_Created : LogPanelViewModelTests
