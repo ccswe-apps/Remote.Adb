@@ -10,6 +10,9 @@ namespace Remote.Adb.Core.Adb;
 [PublicAPI]
 public sealed record AdbDevice(string Serial, string State, string? Model, string? Product, string? Device, string? TransportId)
 {
+    // adb's state for an online, usable device.
+    internal const string OnlineState = "device";
+
     /// <summary>The system image ABI (e.g. <c>arm64-v8a</c>), resolved from the device's properties.</summary>
     public string? Abi { get; init; }
 
@@ -26,7 +29,7 @@ public sealed record AdbDevice(string Serial, string State, string? Model, strin
     public bool IsEmulator { get; init; }
 
     /// <summary>Whether the device is online and usable (adb state <c>device</c>).</summary>
-    public bool IsOnline => State.Equals("device", StringComparison.Ordinal);
+    public bool IsOnline => State.Equals(OnlineState, StringComparison.Ordinal);
 
     /// <summary>A friendly display name (marketing/AVD name) resolved from the device's properties, if available.</summary>
     public string? Name { get; init; }

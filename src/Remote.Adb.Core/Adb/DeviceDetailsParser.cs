@@ -11,16 +11,16 @@ internal static class DeviceDetailsParser
     {
         var properties = Parse(getpropOutput);
 
-        var characteristics = properties.GetValueOrDefault("ro.build.characteristics", string.Empty);
+        var characteristics = ParseCharacteristics(properties.GetValueOrDefault("ro.build.characteristics", string.Empty));
 
         var isEmulator = properties.GetValueOrDefault("ro.kernel.qemu") == "1"
-            || Has(characteristics, "emulator")
+            || characteristics.Contains("emulator")
             || serial.StartsWith("emulator-", StringComparison.Ordinal);
 
-        var form = Has(characteristics, "tablet") ? DeviceForm.Tablet
-            : Has(characteristics, "watch") ? DeviceForm.Watch
-            : Has(characteristics, "automotive") ? DeviceForm.Automotive
-            : Has(characteristics, "tv") ? DeviceForm.Television
+        var form = characteristics.Contains("tablet") ? DeviceForm.Tablet
+            : characteristics.Contains("watch") ? DeviceForm.Watch
+            : characteristics.Contains("automotive") ? DeviceForm.Automotive
+            : characteristics.Contains("tv") ? DeviceForm.Television
             : DeviceForm.Phone;
 
         var name = isEmulator
@@ -49,9 +49,6 @@ internal static class DeviceDetailsParser
         return null;
     }
 
-    private static bool Has(string characteristics, string token) =>
-        characteristics.Split(',').Any(part => part.Trim().Equals(token, StringComparison.OrdinalIgnoreCase));
-
     private static Dictionary<string, string> Parse(string output)
     {
         var properties = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -69,5 +66,23 @@ internal static class DeviceDetailsParser
         }
 
         return properties;
+    }
+
+    // ro.build.characteristics is a comma-separated list (e.g. "emulator,tablet"); split it once.
+    private static HashSet<string> ParseCharacteristics(string characteristics)
+    {
+        var source = characteristics.AsSpan();
+        var parts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var range in source.Split(','))
+        {
+            var part = source[range].Trim();
+            if (!part.IsEmpty)
+            {
+                parts.Add(part.ToString());
+            }
+        }
+
+        return parts;
     }
 }

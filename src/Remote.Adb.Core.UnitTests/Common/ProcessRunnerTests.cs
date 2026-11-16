@@ -90,6 +90,19 @@ public class ProcessRunnerTests
         }
 
         [Test]
+        public async Task It_kills_just_the_process_on_cancellation_when_the_tree_is_spared()
+        {
+            using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+            var (fileName, arguments) = OperatingSystem.IsWindows()
+                ? ("ping", new[] { "-n", "30", "127.0.0.1" })
+                : ("sleep", new[] { "30" });
+
+            await Assert.CatchAsync<OperationCanceledException>(() => Runner.RunAsync(fileName, arguments, null, null, killProcessTree: false, cancellation.Token));
+
+            Assert.That(Logged(LogEvents.CommandCancelled).Count(), Is.EqualTo(1));
+        }
+
+        [Test]
         public async Task It_logs_a_launch_failure()
         {
             await Assert.ThrowsAsync<ProcessLaunchException>(() => Runner.RunAsync("definitely-not-a-real-tool-4f1c", []));

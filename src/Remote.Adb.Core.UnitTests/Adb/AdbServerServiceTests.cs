@@ -1,8 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Net;
-using System.Net.Sockets;
 using Moq;
 using Remote.Adb.Core.Adb;
+using Remote.Adb.Core.Common;
 using Remote.Adb.Testing;
 
 namespace Remote.Adb.Core.UnitTests.Adb;
@@ -10,64 +9,48 @@ namespace Remote.Adb.Core.UnitTests.Adb;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public class AdbServerServiceTests
 {
+    private protected const int OwnServerProcessId = 100;
+    private protected const int Port = 5037;
+
     private protected AdbRunnerMock Adb = null!;
-    private protected TcpListener? Listener;
+    private protected Mock<IListeningProcessFinder> ListeningProcesses = null!;
+    private protected Mock<IPortProbe> PortProbe = null!;
     private protected Mock<IAdbServerProcesses> ServerProcesses = null!;
 
-    private protected AdbServerService CreateService() => new(Adb.Object, ServerProcesses.Object, new LoggerFake<AdbServerService>());
+    private protected AdbServerService CreateService() =>
+        new(Adb.Object, ServerProcesses.Object, ListeningProcesses.Object, PortProbe.Object, new LoggerFake<AdbServerService>());
 
-    // Reserves a free loopback port and points the runner's ServerPort at it; `listening` decides whether the port is
-    // left bound (a running server) or released again (nothing listening).
-    private protected void ServerListening(bool listening)
-    {
-        var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        Adb.Inner.SetupGet(runner => runner.ServerPort).Returns(port);
+    // The process listening on the server port, as the finder reports it.
+    private protected void ListenerIs(int? processId) =>
+        ListeningProcesses.Setup(finder => finder.FindAsync(Port, It.IsAny<CancellationToken>())).ReturnsAsync(processId);
 
-        if (listening)
-        {
-            Listener = listener;
-        }
-        else
-        {
-            listener.Stop();
-            listener.Dispose();
-        }
-    }
+    private protected void ServerListening(bool listening) =>
+        PortProbe.Setup(probe => probe.IsListeningAsync(Port, It.IsAny<CancellationToken>())).ReturnsAsync(listening);
 
     [SetUp]
     public void SetUp()
     {
         Adb = new AdbRunnerMock();
+        Adb.Inner.SetupGet(runner => runner.ServerPort).Returns(Port);
         Adb.Returns(["start-server"], string.Empty);
+        ListeningProcesses = new Mock<IListeningProcessFinder>();
+        PortProbe = new Mock<IPortProbe>();
         ServerProcesses = new Mock<IAdbServerProcesses>();
-        ServerProcesses.Setup(processes => processes.KillAsync(It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        ServerProcesses.Setup(processes => processes.KillAsync(It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
     }
 
-    [TearDown]
-    public void TearDown()
-    {
-        Listener?.Stop();
-        Listener?.Dispose();
-        Listener = null;
-    }
+    // Makes `adb start-server` report that it started the daemon, as the runner signals with ServerStarted.
+    private protected void StartServerStartsTheDaemon() =>
+        Adb.Inner
+            .Setup(runner => runner.RunAsync(It.Is<IReadOnlyList<string>>(args => args.SequenceEqual(new[] { "start-server" })), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Callback(() => Adb.Inner.Raise(runner => runner.ServerStarted += null, EventArgs.Empty))
+            .ReturnsAsync(new ProcessResult(0, string.Empty, "* daemon started successfully\n"));
+
+    private protected void VerifyKills(Times times) =>
+        ServerProcesses.Verify(processes => processes.KillAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), times);
 
     public class When_EnsureOwnServerAsync_Is_Called : AdbServerServiceTests
     {
-        [Test]
-        public async Task It_just_starts_when_the_app_started_the_running_server()
-        {
-            ServerListening(true);
-            Adb.Inner.SetupGet(runner => runner.StartedServer).Returns(true);
-
-            var result = await CreateService().EnsureOwnServerAsync();
-
-            Assert.That(result, Is.True);
-            Adb.Verify(["start-server"], Times.Once());
-            ServerProcesses.Verify(processes => processes.KillAsync(It.IsAny<CancellationToken>()), Times.Never);
-        }
-
         [Test]
         public async Task It_just_starts_when_nothing_is_running()
         {
@@ -76,75 +59,83 @@ public class AdbServerServiceTests
             await CreateService().EnsureOwnServerAsync();
 
             Adb.Verify(["start-server"], Times.Once());
-            ServerProcesses.Verify(processes => processes.KillAsync(It.IsAny<CancellationToken>()), Times.Never);
+            VerifyKills(Times.Never());
+        }
+
+        [Test]
+        public async Task It_just_starts_when_the_running_server_is_the_one_the_app_started()
+        {
+            ServerListening(true);
+            ListenerIs(OwnServerProcessId);
+            var service = CreateService();
+            Adb.Inner.Raise(runner => runner.ServerStarted += null, EventArgs.Empty);
+
+            var result = await service.EnsureOwnServerAsync();
+
+            Assert.That(result, Is.True);
+            Adb.Verify(["start-server"], Times.Once());
+            VerifyKills(Times.Never());
+        }
+
+        [Test]
+        public async Task It_replaces_a_server_that_took_over_after_the_app_started_one()
+        {
+            ServerListening(true);
+            ListenerIs(OwnServerProcessId);
+            StartServerStartsTheDaemon();
+            var service = CreateService();
+            await service.StartAsync();
+            ListenerIs(200);
+
+            await service.EnsureOwnServerAsync();
+
+            VerifyKills(Times.Once());
         }
 
         [Test]
         public async Task It_restarts_a_running_server_the_app_did_not_start()
         {
             ServerListening(true);
+            ListenerIs(OwnServerProcessId);
             var service = CreateService();
             var restarted = false;
             service.ServerRestarted += (_, _) => restarted = true;
 
             var result = await service.EnsureOwnServerAsync();
 
-            Assert.That(result, Is.True);
-            Assert.That(restarted, Is.True);
-            ServerProcesses.Verify(processes => processes.KillAsync(It.IsAny<CancellationToken>()), Times.Once);
+            Assert.Multiple(() =>
+            {
+                Assert.That(result, Is.True);
+                Assert.That(restarted, Is.True);
+            });
+            ServerProcesses.Verify(processes => processes.KillAsync(Port, It.IsAny<CancellationToken>()), Times.Once);
             Adb.Verify(["start-server"], Times.Once());
         }
     }
 
     public class When_IsRunningAsync_Is_Called : AdbServerServiceTests
     {
-        [Test]
-        public async Task It_reflects_whether_a_listener_is_bound_to_the_port()
+        [TestCase(true)]
+        [TestCase(false)]
+        public async Task It_reports_whether_the_port_probe_finds_a_listener(bool listening)
         {
-            var listener = new TcpListener(IPAddress.Loopback, 0);
-            listener.Start();
-            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-            var service = CreateService();
+            PortProbe.Setup(probe => probe.IsListeningAsync(6000, It.IsAny<CancellationToken>())).ReturnsAsync(listening);
 
-            var whileListening = await service.IsRunningAsync(port);
-            listener.Stop();
-            listener.Dispose();
-            var afterStopped = await service.IsRunningAsync(port);
+            var result = await CreateService().IsRunningAsync(6000);
 
-            Assert.That(whileListening, Is.True);
-            Assert.That(afterStopped, Is.False);
-        }
-
-        [Test]
-        public async Task It_returns_false_for_an_out_of_range_port()
-        {
-            var service = CreateService();
-
-            Assert.That(await service.IsRunningAsync(70000), Is.False);
+            Assert.That(result, Is.EqualTo(listening));
         }
     }
 
     public class When_KillAsync_Is_Called : AdbServerServiceTests
     {
         [Test]
-        public async Task It_does_not_forget_the_server_when_the_kill_fails()
-        {
-            ServerProcesses.Setup(processes => processes.KillAsync(It.IsAny<CancellationToken>())).ReturnsAsync(false);
-
-            var result = await CreateService().KillAsync();
-
-            Assert.That(result, Is.False);
-            Adb.Inner.Verify(runner => runner.ForgetServer(), Times.Never);
-        }
-
-        [Test]
-        public async Task It_kills_the_server_process_and_forgets_the_server()
+        public async Task It_kills_the_server_on_the_server_port()
         {
             var result = await CreateService().KillAsync();
 
             Assert.That(result, Is.True);
-            ServerProcesses.Verify(processes => processes.KillAsync(It.IsAny<CancellationToken>()), Times.Once);
-            Adb.Inner.Verify(runner => runner.ForgetServer(), Times.Once);
+            ServerProcesses.Verify(processes => processes.KillAsync(Port, It.IsAny<CancellationToken>()), Times.Once);
         }
 
         [Test]
@@ -154,6 +145,16 @@ public class AdbServerServiceTests
 
             Adb.Verify(["kill-server"], Times.Never());
             Adb.VerifyAny(Times.Never());
+        }
+
+        [Test]
+        public async Task It_reports_a_failed_kill()
+        {
+            ServerProcesses.Setup(processes => processes.KillAsync(It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+
+            var result = await CreateService().KillAsync();
+
+            Assert.That(result, Is.False);
         }
     }
 
@@ -169,27 +170,14 @@ public class AdbServerServiceTests
 
             var result = await service.RestartAsync();
 
-            Assert.That(result, Is.True);
-            Assert.That(restarted, Is.True);
-            ServerProcesses.Verify(processes => processes.KillAsync(It.IsAny<CancellationToken>()), Times.Once);
+            Assert.Multiple(() =>
+            {
+                Assert.That(result, Is.True);
+                Assert.That(restarted, Is.True);
+            });
+            VerifyKills(Times.Once());
             Adb.Verify(["start-server"], Times.Once());
             Adb.Verify(["kill-server"], Times.Never());
-        }
-
-        [Test]
-        public async Task It_returns_false_without_starting_or_raising_when_the_kill_fails()
-        {
-            ServerListening(true);
-            ServerProcesses.Setup(processes => processes.KillAsync(It.IsAny<CancellationToken>())).ReturnsAsync(false);
-            var service = CreateService();
-            var restarted = false;
-            service.ServerRestarted += (_, _) => restarted = true;
-
-            var result = await service.RestartAsync();
-
-            Assert.That(result, Is.False);
-            Assert.That(restarted, Is.False);
-            Adb.Verify(["start-server"], Times.Never());
         }
 
         [Test]
@@ -202,18 +190,55 @@ public class AdbServerServiceTests
 
             var result = await service.RestartAsync();
 
-            Assert.That(result, Is.False);
-            Assert.That(restarted, Is.False);
+            Assert.Multiple(() =>
+            {
+                Assert.That(result, Is.False);
+                Assert.That(restarted, Is.False);
+            });
+        }
+
+        [Test]
+        public async Task It_returns_false_without_starting_or_raising_when_the_kill_fails()
+        {
+            ServerListening(true);
+            ServerProcesses.Setup(processes => processes.KillAsync(It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+            var service = CreateService();
+            var restarted = false;
+            service.ServerRestarted += (_, _) => restarted = true;
+
+            var result = await service.RestartAsync();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result, Is.False);
+                Assert.That(restarted, Is.False);
+            });
+            Adb.Verify(["start-server"], Times.Never());
         }
     }
 
     public class When_StartAsync_Is_Called : AdbServerServiceTests
     {
         [Test]
-        public async Task It_returns_false_when_start_server_fails()
+        public async Task It_pins_a_server_it_started_to_the_listening_process()
         {
             ServerListening(true);
-            Adb.Returns(["start-server"], string.Empty, exitCode: 1, stderr: "error: could not install *smartsocket* listener");
+            ListenerIs(OwnServerProcessId);
+            StartServerStartsTheDaemon();
+            var service = CreateService();
+
+            await service.StartAsync();
+            Adb.Returns(["start-server"], string.Empty);
+            await service.EnsureOwnServerAsync();
+
+            ListeningProcesses.Verify(finder => finder.FindAsync(Port, It.IsAny<CancellationToken>()), Times.Exactly(2));
+            VerifyKills(Times.Never());
+        }
+
+        [Test]
+        public async Task It_returns_false_when_nothing_listens_afterwards()
+        {
+            ServerListening(false);
 
             var result = await CreateService().StartAsync();
 
@@ -221,9 +246,10 @@ public class AdbServerServiceTests
         }
 
         [Test]
-        public async Task It_returns_false_when_nothing_listens_afterwards()
+        public async Task It_returns_false_when_start_server_fails()
         {
-            ServerListening(false);
+            ServerListening(true);
+            Adb.Returns(["start-server"], string.Empty, exitCode: 1, stderr: "error: could not install *smartsocket* listener");
 
             var result = await CreateService().StartAsync();
 
@@ -239,6 +265,21 @@ public class AdbServerServiceTests
 
             Assert.That(result, Is.True);
             Adb.Verify(["start-server"], Times.Once());
+        }
+    }
+
+    public class When_The_Runner_Replaces_A_Stale_Server : AdbServerServiceTests
+    {
+        [Test]
+        public void It_raises_ServerRestarted()
+        {
+            var service = CreateService();
+            var restarted = false;
+            service.ServerRestarted += (_, _) => restarted = true;
+
+            Adb.Inner.Raise(runner => runner.ServerReplaced += null, EventArgs.Empty);
+
+            Assert.That(restarted, Is.True);
         }
     }
 }

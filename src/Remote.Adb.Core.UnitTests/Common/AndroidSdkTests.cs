@@ -61,6 +61,36 @@ public class AndroidSdkTests
         return path;
     }
 
+    public class When_Ordering_Cmdline_Tools_Versions : AndroidSdkTests
+    {
+        [Test]
+        public void It_orders_versions_numerically_newest_first_then_other_names()
+        {
+            var ordered = AndroidSdk.OrderNewestFirst(["9.0", "16.0", "other", "12.0", "17"]);
+
+            Assert.That(ordered, Is.EqualTo(new[] { "17", "16.0", "12.0", "9.0", "other" }));
+        }
+    }
+
+    public class When_Resolving_A_Cmdline_Tool : AndroidSdkTests
+    {
+        [Test]
+        public void It_picks_the_newest_installed_version_not_the_textually_largest()
+        {
+            var sdkRoot = CreateDirectory("sdk");
+            var executable = OperatingSystem.IsWindows() ? "avdmanager.bat" : "avdmanager";
+            foreach (var version in new[] { "9.0", "16.0" })
+            {
+                var bin = CreateDirectory(Path.Combine("sdk", "cmdline-tools", version, "bin"));
+                File.WriteAllText(Path.Combine(bin, executable), string.Empty);
+            }
+
+            var sdk = CreateSdk(Settings(sdkRoot: sdkRoot));
+
+            Assert.That(sdk.AvdManagerPath, Is.EqualTo(Path.Combine(sdkRoot, "cmdline-tools", "16.0", "bin", executable)));
+        }
+    }
+
     public class When_Resolving_The_Sdk_Root : AndroidSdkTests
     {
         [Test]
