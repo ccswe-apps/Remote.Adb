@@ -29,13 +29,13 @@ while it's there.
    Can also connect automatically on launch.
 2. **Emulator management** — list, start, stop, create, view/edit, and delete Android Virtual Devices.
 3. **Devices** — lists the devices `adb` currently sees (`adb devices -l`), and connects devices over the
-   network: pair an Android 11+ device by scanning a QR code or entering its pairing code, or connect by `ip:port`.
+   network: pair an Android 11+ device by scanning a QR code or entering its pairing code, connect by `ip:port` or
+   pick a device discovered on your network, or switch a USB-connected device over to Wi-Fi.
    Connections go through your local `adb` server, so they're visible on the remote host through the tunnel,
    and addresses you connect by hand are reconnected automatically after `adb` restarts.
 
-> **Status:** early but usable. The SSH tunnel, emulator management, and wireless connect/pair (by code or QR) and
-> discovery are working; switching a USB device to Wi-Fi is next. See
-> [`docs/ROADMAP.md`](docs/ROADMAP.md).
+> **Status:** all three pillars — the SSH tunnel, emulator management, and network device connection — are working.
+> See [`docs/ROADMAP.md`](docs/ROADMAP.md) for what's next.
 
 ## Requirements
 
@@ -96,6 +96,9 @@ dotnet run --project src/Remote.Adb.Console -- tunnel
     address. Discovery needs this computer on the phone's network with UDP port 5353 allowed for `adb` through the
     firewall; the dialog says so when it isn't available.
   - A wireless device's **⋮** menu has **Disconnect**, which also stops it being reconnected.
+  - A USB device's **⋮** menu has **Enable Wi-Fi debugging**: it reads the phone's Wi-Fi address, switches it to
+    `adb tcpip 5555`, and connects to it over Wi-Fi (remembered for reconnects) — then you can unplug it. The phone
+    must be on the same Wi-Fi network as this computer.
 - **Status bar & log** — the strip along the bottom of the window shows the tunnel's state, the last command the
   app ran (with its exit status and duration), and a badge counting warnings/errors you haven't seen. Click it to
   open the **log panel**: every `adb`/`ssh`/`emulator` command the app runs (exit code, duration, and output) plus
@@ -123,6 +126,7 @@ dotnet run --project src/Remote.Adb.Console -- emulator start <avd-name>
 dotnet run --project src/Remote.Adb.Console -- wireless pair 192.168.1.20:37123
 dotnet run --project src/Remote.Adb.Console -- wireless connect 192.168.1.20:41235
 dotnet run --project src/Remote.Adb.Console -- wireless disconnect 192.168.1.20:41235
+dotnet run --project src/Remote.Adb.Console -- wireless enable R58M123ABC     # USB device → Wi-Fi
 ```
 
 Run the console with no arguments for the full command list. Add `--verbose` to any command to print each tool it

@@ -401,6 +401,12 @@ static async Task<int> HandleWirelessAsync(string[] args, IWirelessAdbService wi
             Console.WriteLine(result.Message);
             return result.Paired ? 0 : 1;
         }
+        case "enable" when args.Length == 2:
+        {
+            var result = await wireless.EnableWirelessAsync(args[1]);
+            Console.WriteLine(result.Success ? $"Connected at {result.Address}; the device can be unplugged." : result.Message);
+            return result.Success ? 0 : 1;
+        }
         case "mdns":
         {
             var services = await wireless.DiscoverAsync();
@@ -460,6 +466,7 @@ static void PrintUsage()
     Console.WriteLine("  wireless pair <ip:port> [code]   Pair an Android 11+ device (prompts for the code if omitted)");
     Console.WriteLine("  wireless connect <ip[:port]>  Connect a device over the network and remember it");
     Console.WriteLine("  wireless disconnect <serial>  Disconnect a network device and forget it");
+    Console.WriteLine("  wireless enable <usb-serial>  Switch a USB device to Wi-Fi debugging and connect to it");
     Console.WriteLine("  wireless reconnect            Reconnect every remembered device");
     Console.WriteLine("  wireless mdns                 List wireless debugging services adb sees on the network");
 }

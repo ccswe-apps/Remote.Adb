@@ -21,7 +21,6 @@ manual scripts and steps.
 
 | Milestone | Notes |
 |-----------|-------|
-| **Wireless devices: Wi-Fi from USB** | Pillar 3. [tasks/wireless-devices.md](tasks/wireless-devices.md); connecting by address, pairing (code or QR), and picking discovered devices are in — what's left is switching a USB device to Wi-Fi. |
 | **SDK Manager UI** (list / download / remove system images & packages via `sdkmanager`) | [tasks/sdk-manager.md](tasks/sdk-manager.md); unblocks creating from a not-yet-installed image. |
 | **DI lifetimes / stop manual construction** | [tasks/di-lifetimes.md](tasks/di-lifetimes.md); deferred until a concrete driver — scope view models to their owning window/view and resolve currently-`new`'d dialog windows/VMs from DI. |
 
@@ -29,12 +28,13 @@ manual scripts and steps.
 
 - All domain logic lives in `Remote.Adb.Core`; the GUI and CLI are thin shells that resolve services
   from DI (`AddRemoteAdbCore()`). New capability lands in Core first, then is surfaced in both heads.
-- Pillars 1 (SSH reverse tunnel) and 2 (emulator management) have landed, and Pillar 3 can now connect and
-  pair devices over the network; its discovery / QR / USB-to-Wi-Fi conveniences remain. See the "SSH/adb
-  constraints the tunnel must preserve" section of `CLAUDE.md` for the hard-won SSH/adb details
-  the tunnel implementation preserves.
+- All three pillars have landed: the SSH reverse tunnel, emulator management, and network device connection
+  (connect, pair by code or QR, discovery, USB-to-Wi-Fi). See the "SSH/adb constraints" section of `CLAUDE.md`
+  for the hard-won SSH/adb details the implementation preserves.
 - To debug the desktop UI (catch runtime layout/XAML bugs a clean build misses), drive it under WSLg
   with screenshots — see [wslg-gui-debugging.md](wslg-gui-debugging.md) and the reproducible data
   harness at [tools/setup-fake-avd-harness.sh](tools/setup-fake-avd-harness.sh).
+- Possible enhancement: **one device, several rows.** A phone can show up as its USB serial, as `ip:port`, and as
+  `adb-<guid>._adb-tls-connect._tcp` at once; grouping rows by `ro.serialno` would collapse them.
 - Possible enhancement: expose the list auto-refresh interval (currently the `DevicesViewModel.RefreshInterval`
   constant) as a persisted setting.

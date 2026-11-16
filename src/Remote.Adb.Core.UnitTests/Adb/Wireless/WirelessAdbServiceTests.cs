@@ -31,6 +31,7 @@ public class WirelessAdbServiceTests
     protected WirelessAdbService CreateService() =>
         new(Adb.Object, Settings.Object, new LoggerFake<WirelessAdbService>())
         {
+            EnableConnectTimeout = TimeSpan.FromMilliseconds(100),
             PairConnectTimeout = TimeSpan.FromMilliseconds(50),
             PairTimeout = TimeSpan.FromMilliseconds(100),
             PollInterval = TimeSpan.FromMilliseconds(10),
@@ -105,6 +106,116 @@ public class WirelessAdbServiceTests
             {
                 Assert.That(result.Success, Is.True);
                 Assert.That(Saved, Is.EqualTo(new[] { "192.168.1.30:5555" }));
+            });
+        }
+    }
+
+    public class When_EnableWirelessAsync_Is_Called : WirelessAdbServiceTests
+    {
+        protected static readonly string[] Connect = ["connect", "192.168.1.20:5555"];
+        protected static readonly string[] IpAddr = ["-s", Serial, "shell", "ip", "-4", "addr", "show", "wlan0"];
+        protected static readonly string[] IpRoute = ["-s", Serial, "shell", "ip", "route"];
+        protected const string Serial = "R58M123ABC";
+        protected static readonly string[] Tcpip = ["-s", Serial, "tcpip", "5555"];
+
+        protected IReadOnlyList<string> CommandsRun() =>
+            Adb.Inner.Invocations.Select(invocation => string.Join(' ', (IReadOnlyList<string>)invocation.Arguments[0]!)).ToList();
+
+        [Test]
+        public async Task It_reads_the_wifi_address_before_switching_to_tcp_and_remembers_the_connection()
+        {
+            Adb.Returns(IpRoute, "192.168.1.0/24 dev wlan0 proto kernel scope link src 192.168.1.20\n");
+            Adb.Returns(Tcpip, "restarting in TCP mode port: 5555\n");
+            Adb.Returns(Connect, "connected to 192.168.1.20:5555\n");
+
+            var result = await CreateService().EnableWirelessAsync(Serial);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Outcome, Is.EqualTo(WirelessEnableOutcome.Connected));
+                Assert.That(result.Address, Is.EqualTo("192.168.1.20:5555"));
+                Assert.That(CommandsRun(), Is.EqualTo(new[] { string.Join(' ', IpRoute), string.Join(' ', Tcpip), string.Join(' ', Connect) }));
+                Assert.That(Saved, Is.EqualTo(new[] { "192.168.1.20:5555" }));
+            });
+        }
+
+        [Test]
+        public async Task It_falls_back_to_the_wlan0_address()
+        {
+            Adb.Returns(IpRoute, "10.20.0.0/16 dev rmnet_data0 src 10.20.30.40\n");
+            Adb.Returns(IpAddr, "    inet 192.168.1.20/24 brd 192.168.1.255 scope global wlan0\n");
+            Adb.Returns(Tcpip, "restarting in TCP mode port: 5555\n");
+            Adb.Returns(Connect, "connected to 192.168.1.20:5555\n");
+
+            var result = await CreateService().EnableWirelessAsync(Serial);
+
+            Assert.That(result.Address, Is.EqualTo("192.168.1.20:5555"));
+        }
+
+        [Test]
+        public async Task It_changes_nothing_when_the_device_is_not_on_wifi()
+        {
+            Adb.Returns(IpRoute, "10.20.0.0/16 dev rmnet_data0 src 10.20.30.40\n");
+            Adb.Returns(IpAddr, "30: wlan0: <NO-CARRIER> state DOWN\n");
+
+            var result = await CreateService().EnableWirelessAsync(Serial);
+
+            Assert.That(result.Outcome, Is.EqualTo(WirelessEnableOutcome.NoWifiAddress));
+            Adb.Verify(Tcpip, Times.Never());
+        }
+
+        [Test]
+        public async Task It_reports_a_tcpip_failure()
+        {
+            Adb.Returns(IpRoute, "192.168.1.0/24 dev wlan0 src 192.168.1.20\n");
+            Adb.Returns(Tcpip, "", exitCode: 1, stderr: "error: device unauthorized.\n");
+
+            var result = await CreateService().EnableWirelessAsync(Serial);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Outcome, Is.EqualTo(WirelessEnableOutcome.TcpipFailed));
+                Assert.That(result.Message, Is.EqualTo("error: device unauthorized."));
+            });
+            Adb.Verify(Connect, Times.Never());
+        }
+
+        [Test]
+        public async Task It_retries_the_connect_while_adbd_restarts()
+        {
+            Adb.Returns(IpRoute, "192.168.1.0/24 dev wlan0 src 192.168.1.20\n");
+            Adb.Returns(Tcpip, "restarting in TCP mode port: 5555\n");
+            var attempts = 0;
+            Adb.Inner
+                .Setup(runner => runner.RunAsync(It.Is<IReadOnlyList<string>>(args => args.SequenceEqual(Connect)), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(() => ++attempts < 3
+                    ? new ProcessResult(0, "failed to connect to '192.168.1.20:5555': Connection refused\n", string.Empty)
+                    : new ProcessResult(0, "connected to 192.168.1.20:5555\n", string.Empty));
+
+            var result = await CreateService().EnableWirelessAsync(Serial);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Outcome, Is.EqualTo(WirelessEnableOutcome.Connected));
+                Assert.That(attempts, Is.EqualTo(3));
+            });
+        }
+
+        [Test]
+        public async Task It_reports_a_partial_success_when_the_device_never_answers()
+        {
+            Adb.Returns(IpRoute, "192.168.1.0/24 dev wlan0 src 192.168.1.20\n");
+            Adb.Returns(Tcpip, "restarting in TCP mode port: 5555\n");
+            Adb.Returns(Connect, "failed to connect to '192.168.1.20:5555': Connection timed out\n");
+
+            var result = await CreateService().EnableWirelessAsync(Serial);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Outcome, Is.EqualTo(WirelessEnableOutcome.ConnectFailed));
+                Assert.That(result.Address, Is.EqualTo("192.168.1.20:5555"));
+                Assert.That(result.Message, Does.StartWith("failed to connect"));
+                Assert.That(Saved, Is.Empty);
             });
         }
     }

@@ -28,6 +28,9 @@ public sealed class WirelessAdbService : IWirelessAdbService
     /// </summary>
     internal TimeSpan ConnectTimeout { get; init; } = TimeSpan.FromSeconds(15);
 
+    /// <summary>How long to keep trying to connect after switching a USB device to TCP mode (adbd restarts first).</summary>
+    internal TimeSpan EnableConnectTimeout { get; init; } = TimeSpan.FromSeconds(10);
+
     /// <summary>How long to wait, after pairing, for the device to connect.</summary>
     internal TimeSpan PairConnectTimeout { get; init; } = TimeSpan.FromSeconds(10);
 
@@ -86,6 +89,36 @@ public sealed class WirelessAdbService : IWirelessAdbService
     {
         var result = await AdbAsync(["mdns", "services"], cancellationToken);
         return result.Success ? WirelessOutputParser.ParseMdnsServices(result.StandardOutput) : [];
+    }
+
+    /// <inheritdoc />
+    public async Task<WirelessEnableResult> EnableWirelessAsync(string serial, CancellationToken cancellationToken = default)
+    {
+        // The address must be read while USB still works: once adbd restarts in TCP mode the USB link drops.
+        var ip = WirelessOutputParser.ParseIpRouteSource((await AdbAsync(["-s", serial, "shell", "ip", "route"], cancellationToken)).StandardOutput)
+                 ?? WirelessOutputParser.ParseIpAddrInet((await AdbAsync(["-s", serial, "shell", "ip", "-4", "addr", "show", "wlan0"], cancellationToken)).StandardOutput);
+        if (ip is null)
+        {
+            return new WirelessEnableResult(WirelessEnableOutcome.NoWifiAddress, null, "The device has no Wi-Fi address. Connect it to the same Wi-Fi network as this computer first.");
+        }
+
+        var address = ip + DefaultPortSuffix;
+        var tcpip = WirelessOutputParser.ParseTcpip(await AdbAsync(["-s", serial, "tcpip", "5555"], cancellationToken));
+        if (!tcpip.Success)
+        {
+            return new WirelessEnableResult(WirelessEnableOutcome.TcpipFailed, address, tcpip.Message);
+        }
+
+        WirelessConnectResult? last = null;
+        var connected = await PollUntilAsync(EnableConnectTimeout, async token =>
+        {
+            last = await ConnectAsync(address, remember: true, token);
+            return last.Success;
+        }, cancellationToken);
+
+        return connected
+            ? new WirelessEnableResult(WirelessEnableOutcome.Connected, address, last!.Message)
+            : new WirelessEnableResult(WirelessEnableOutcome.ConnectFailed, address, last?.Message ?? $"Timed out connecting to {address}.");
     }
 
     private void Forget(string serial)
@@ -174,6 +207,33 @@ public sealed class WirelessAdbService : IWirelessAdbService
         return connected;
     }
 
+    // The shared "keep trying until it works or time runs out" loop: runs `attempt` every PollInterval as routine
+    // background work, at least once, until it succeeds or `timeout` passes. An attempt still in flight at the deadline is
+    // cancelled, so the whole wait is bounded by `timeout` (plus one interval).
+    private async Task<bool> PollUntilAsync(TimeSpan timeout, Func<CancellationToken, Task<bool>> attempt, CancellationToken cancellationToken)
+    {
+        using var scope = CommandLogScope.Background();
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(timeout);
+
+        try
+        {
+            while (true)
+            {
+                if (await attempt(deadline.Token))
+                {
+                    return true;
+                }
+
+                await Task.Delay(PollInterval, deadline.Token);
+            }
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
+    }
+
     private void Remember(string address)
     {
         lock (_gate)
@@ -189,32 +249,17 @@ public sealed class WirelessAdbService : IWirelessAdbService
     // After pairing, adb tries to connect by the device's mDNS name (its guid) — but only if it has already seen the
     // device's _adb-tls-connect announcement. Poll until the device is listed, connecting explicitly to the announced
     // address when it shows up but adb didn't connect on its own.
-    private async Task<bool> WaitForConnectionAsync(string guid, CancellationToken cancellationToken)
-    {
-        using var scope = CommandLogScope.Background();
-        var deadline = DateTime.UtcNow + PairConnectTimeout;
-
-        while (true)
+    private Task<bool> WaitForConnectionAsync(string guid, CancellationToken cancellationToken) =>
+        PollUntilAsync(PairConnectTimeout, async token =>
         {
-            var devices = await AdbAsync(["devices"], cancellationToken);
+            var devices = await AdbAsync(["devices"], token);
             if (AdbOutputParser.ParseDevices(devices.StandardOutput).Any(serial => serial.StartsWith(guid, StringComparison.Ordinal)))
             {
                 return true;
             }
 
-            var service = (await DiscoverAsync(cancellationToken))
+            var service = (await DiscoverAsync(token))
                 .FirstOrDefault(candidate => candidate.Type == MdnsServiceType.Connect && candidate.Instance == guid);
-            if (service is not null && (await ConnectAsync(service.Address, remember: false, cancellationToken)).Success)
-            {
-                return true;
-            }
-
-            if (DateTime.UtcNow >= deadline)
-            {
-                return false;
-            }
-
-            await Task.Delay(PollInterval, cancellationToken);
-        }
-    }
+            return service is not null && (await ConnectAsync(service.Address, remember: false, token)).Success;
+        }, cancellationToken);
 }

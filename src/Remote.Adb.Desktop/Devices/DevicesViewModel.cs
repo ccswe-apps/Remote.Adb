@@ -162,6 +162,48 @@ public partial class DevicesViewModel : AutoRefreshingListViewModel
         }
     }
 
+    // Switches an online USB device to Wi-Fi debugging (tcpip, then connect — remembered for reconnects), then refreshes so
+    // the new network row appears. Reports the partial case (switched, but unreachable) as a warning with what to check.
+    [RelayCommand]
+    private async Task EnableWirelessAsync(DeviceRowViewModel? device)
+    {
+        if (device?.Serial is null || !device.IsUsb || device.IsBusy)
+        {
+            return;
+        }
+
+        device.IsBusy = true;
+        try
+        {
+            var result = await _wireless.EnableWirelessAsync(device.Serial);
+            switch (result.Outcome)
+            {
+                case WirelessEnableOutcome.Connected:
+                    Notifications.Show("Wi-Fi debugging on", $"{device.DisplayName} is connected at {result.Address}. You can unplug it.", NotificationSeverity.Success);
+                    break;
+                case WirelessEnableOutcome.ConnectFailed:
+                    Notifications.Show(
+                        "Couldn't reach the device over Wi-Fi",
+                        $"{device.DisplayName} switched to Wi-Fi debugging at {result.Address}, but this computer couldn't connect ({result.Message}). Check it's on the same network, or plug it back in.",
+                        NotificationSeverity.Warning);
+                    break;
+                default:
+                    NotifyError("Couldn't enable Wi-Fi debugging", result.Message);
+                    break;
+            }
+
+            await RefreshAsync(notifyOnError: true);
+        }
+        catch (ProcessLaunchException exception)
+        {
+            NotifyError("Couldn't enable Wi-Fi debugging", exception.Message);
+        }
+        finally
+        {
+            device.IsBusy = false;
+        }
+    }
+
     // Lists AVDs and adb devices concurrently, drops the running emulators from the adb list (they're already
     // represented by AVD rows), then reconciles each source into its own rows and reorders the whole list.
     protected override async Task LoadAsync()
@@ -184,7 +226,7 @@ public partial class DevicesViewModel : AutoRefreshingListViewModel
             device => "dev:" + device.Serial,
             row => row.IdentityKey,
             row => row.IsPhysical,
-            device => new DeviceRowViewModel(device, DisconnectCommand),
+            device => new DeviceRowViewModel(device, DisconnectCommand, EnableWirelessCommand),
             (row, device) => row.Update(device));
     }
 

@@ -290,14 +290,19 @@ public class DevicesViewModelTests
     public class When_Rows_Are_Built : DevicesViewModelTests
     {
         [Test]
-        public async Task It_offers_an_overflow_for_wireless_and_virtual_rows_but_not_usb()
+        public async Task It_offers_an_overflow_for_virtual_wireless_and_online_usb_rows_only()
         {
             EmulatorService
                 .Setup(service => service.ListAsync(It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new[] { Virtual("Pixel_8") });
             DeviceService
                 .Setup(service => service.ListAsync(It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new[] { Physical("192.168.1.20:5555", "Wireless"), Physical("R58M123ABC", "Usb") });
+                .ReturnsAsync(new[]
+                {
+                    Physical("192.168.1.20:5555", "Wireless"),
+                    Physical("R58M123ABC", "Usb"),
+                    Physical("R58M999XYZ", "Unauthorized", state: "unauthorized"),
+                });
             var viewModel = CreateViewModel();
 
             await viewModel.OnActivatedAsync();
@@ -307,8 +312,83 @@ public class DevicesViewModelTests
             {
                 ["Pixel_8"] = true,
                 ["Wireless"] = true,
-                ["Usb"] = false,
+                ["Usb"] = true,
+                ["Unauthorized"] = false,
             }));
+        }
+    }
+
+    public class When_EnableWirelessCommand_Is_Executed : DevicesViewModelTests
+    {
+        protected async Task<DevicesViewModel> CreateWithUsbDeviceAsync()
+        {
+            DeviceService
+                .Setup(service => service.ListAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new[] { Physical("R58M123ABC", "Galaxy") });
+            var viewModel = CreateViewModel();
+            await viewModel.OnActivatedAsync();
+            return viewModel;
+        }
+
+        [Test]
+        public async Task It_switches_the_device_and_confirms_it_can_be_unplugged()
+        {
+            Wireless
+                .Setup(wireless => wireless.EnableWirelessAsync("R58M123ABC", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new WirelessEnableResult(WirelessEnableOutcome.Connected, "192.168.1.20:5555", "connected to 192.168.1.20:5555"));
+            var viewModel = await CreateWithUsbDeviceAsync();
+            var row = viewModel.Devices.Single();
+
+            await viewModel.EnableWirelessCommand.ExecuteAsync(row);
+
+            Notifications.Verify(
+                notifications => notifications.Show("Wi-Fi debugging on", It.Is<string>(message => message.Contains("192.168.1.20:5555")), NotificationSeverity.Success, It.IsAny<TimeSpan?>(), It.IsAny<Action?>()),
+                Times.Once);
+            Assert.That(row.IsBusy, Is.False);
+        }
+
+        [Test]
+        public async Task It_warns_when_the_device_switched_but_could_not_be_reached()
+        {
+            Wireless
+                .Setup(wireless => wireless.EnableWirelessAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new WirelessEnableResult(WirelessEnableOutcome.ConnectFailed, "192.168.1.20:5555", "failed to connect"));
+            var viewModel = await CreateWithUsbDeviceAsync();
+
+            await viewModel.EnableWirelessCommand.ExecuteAsync(viewModel.Devices.Single());
+
+            Notifications.Verify(
+                notifications => notifications.Show(It.IsAny<string>(), It.IsAny<string>(), NotificationSeverity.Warning, It.IsAny<TimeSpan?>(), It.IsAny<Action?>()),
+                Times.Once);
+        }
+
+        [Test]
+        public async Task It_shows_an_error_when_the_device_is_not_on_wifi()
+        {
+            Wireless
+                .Setup(wireless => wireless.EnableWirelessAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new WirelessEnableResult(WirelessEnableOutcome.NoWifiAddress, null, "The device has no Wi-Fi address."));
+            var viewModel = await CreateWithUsbDeviceAsync();
+
+            await viewModel.EnableWirelessCommand.ExecuteAsync(viewModel.Devices.Single());
+
+            Notifications.Verify(
+                notifications => notifications.Show("Couldn't enable Wi-Fi debugging", "The device has no Wi-Fi address.", NotificationSeverity.Error, It.IsAny<TimeSpan?>(), It.IsAny<Action?>()),
+                Times.Once);
+        }
+
+        [Test]
+        public async Task It_ignores_a_wireless_row()
+        {
+            DeviceService
+                .Setup(service => service.ListAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new[] { Physical("192.168.1.20:5555", "Pixel") });
+            var viewModel = CreateViewModel();
+            await viewModel.OnActivatedAsync();
+
+            await viewModel.EnableWirelessCommand.ExecuteAsync(viewModel.Devices.Single());
+
+            Wireless.Verify(wireless => wireless.EnableWirelessAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         }
     }
 
