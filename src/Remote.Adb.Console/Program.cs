@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Remote.Adb.Core;
+using Remote.Adb.Core.Adb.Wireless;
 using Remote.Adb.Core.Common;
 using Remote.Adb.Core.Emulators;
 using Remote.Adb.Core.Settings;
@@ -36,6 +37,7 @@ try
             args[1..],
             provider.GetRequiredService<ITunnelService>(),
             provider.GetRequiredService<ISettingsService>()),
+        "wireless" => await HandleWirelessAsync(args[1..], provider.GetRequiredService<IWirelessAdbService>()),
         _ => Unknown(args[0]),
     };
 }
@@ -373,6 +375,66 @@ static void PrintConfiguration(AvdConfiguration config)
     Line("Path", config.Path);
 }
 
+static async Task<int> HandleWirelessAsync(string[] args, IWirelessAdbService wireless)
+{
+    var command = args.Length > 0 ? args[0] : string.Empty;
+
+    switch (command)
+    {
+        case "connect" when args.Length == 2:
+        {
+            var result = await wireless.ConnectAsync(args[1]);
+            Console.WriteLine(result.Message);
+            return result.Success ? 0 : 1;
+        }
+        case "disconnect" when args.Length == 2:
+        {
+            var result = await wireless.DisconnectAsync(args[1]);
+            Console.WriteLine(result.Message);
+            return result.Success ? 0 : 1;
+        }
+        case "pair" when args.Length is 2 or 3:
+        {
+            // Prompt for the code rather than requiring it on the command line, where it would land in shell history.
+            var code = args.Length == 3 ? args[2] : Prompt("Pairing code: ");
+            var result = await wireless.PairAsync(args[1], code);
+            Console.WriteLine(result.Message);
+            return result.Paired ? 0 : 1;
+        }
+        case "mdns":
+        {
+            var services = await wireless.DiscoverAsync();
+            if (services.Count == 0)
+            {
+                Console.WriteLine("No wireless debugging services found (is the device on this network with Wireless debugging on?).");
+                return 0;
+            }
+
+            foreach (var service in services)
+            {
+                Console.WriteLine($"{service.Type,-8} {service.Address,-22} {service.Instance}");
+            }
+
+            return 0;
+        }
+        case "reconnect":
+        {
+            var connected = await wireless.ReconnectSavedAsync();
+            Console.WriteLine($"{connected} saved wireless device(s) connected.");
+            return 0;
+        }
+        default:
+            PrintUsage();
+            return 1;
+    }
+}
+
+static string Prompt(string label)
+{
+    Console.Write(label);
+    return Console.ReadLine() ?? string.Empty;
+}
+
 static int Unknown(string command)
 {
     Console.Error.WriteLine($"Unknown command '{command}'.");
@@ -395,4 +457,9 @@ static void PrintUsage()
     Console.WriteLine("  emulator start <avd-name>     Launch the given AVD");
     Console.WriteLine("  emulator stop <serial>        Stop the running emulator with the given serial");
     Console.WriteLine("  tunnel [host]                 Open the SSH reverse tunnel (host falls back to the saved setting); Ctrl+C closes it");
+    Console.WriteLine("  wireless pair <ip:port> [code]   Pair an Android 11+ device (prompts for the code if omitted)");
+    Console.WriteLine("  wireless connect <ip[:port]>  Connect a device over the network and remember it");
+    Console.WriteLine("  wireless disconnect <serial>  Disconnect a network device and forget it");
+    Console.WriteLine("  wireless reconnect            Reconnect every remembered device");
+    Console.WriteLine("  wireless mdns                 List wireless debugging services adb sees on the network");
 }

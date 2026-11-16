@@ -28,11 +28,14 @@ while it's there.
    (instead of looking healthy) and **auto-reconnects with backoff**, only faulting if it can't recover.
    Can also connect automatically on launch.
 2. **Emulator management** — list, start, stop, create, view/edit, and delete Android Virtual Devices.
-3. **Devices** — lists the devices `adb` currently sees (`adb devices -l`). Connecting to a device
-   over the network (Wi-Fi) is still on the [roadmap](docs/ROADMAP.md).
+3. **Devices** — lists the devices `adb` currently sees (`adb devices -l`), and connects devices over the
+   network: pair an Android 11+ device with its Wireless debugging pairing code, or connect by `ip:port`.
+   Connections go through your local `adb` server, so they're visible on the remote host through the tunnel,
+   and addresses you connect by hand are reconnected automatically after `adb` restarts.
 
-> **Status:** early but usable. The SSH tunnel and emulator management are working; the Devices page
-> lists devices but can't yet *connect* over the network. See [`docs/ROADMAP.md`](docs/ROADMAP.md).
+> **Status:** early but usable. The SSH tunnel, emulator management, and wireless connect/pair are working;
+> discovering devices on the network, QR-code pairing, and switching a USB device to Wi-Fi are next. See
+> [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Requirements
 
@@ -83,6 +86,12 @@ dotnet run --project src/Remote.Adb.Console -- tunnel
   and a **Restart adb** action bounces the local `adb` server without dropping the tunnel.
 - **Devices** — your AVDs with their running state (start/stop/create/edit/delete) and the physical devices `adb`
   currently sees, in one list auto-refreshed while the page is open.
+  - **Add Wireless Device** — *Pair* an Android 11+ device: on the phone open Developer options › Wireless
+    debugging › *Pair device with pairing code* and enter the IP address & port and the code it shows. Once paired
+    it connects automatically (if it doesn't, the dialog asks for the IP address & port shown on the Wireless
+    debugging screen). Or *Connect* directly to a paired device or one in `adb tcpip` mode by `ip[:port]` — those
+    addresses are remembered and reconnected whenever the local `adb` server restarts or the tunnel comes back up.
+  - A wireless device's **⋮** menu has **Disconnect**, which also stops it being reconnected.
 - **Status bar & log** — the strip along the bottom of the window shows the tunnel's state, the last command the
   app ran (with its exit status and duration), and a badge counting warnings/errors you haven't seen. Click it to
   open the **log panel**: every `adb`/`ssh`/`emulator` command the app runs (exit code, duration, and output) plus
@@ -102,6 +111,11 @@ dotnet run --project src/Remote.Adb.Console -- tunnel [host]
 # Emulators
 dotnet run --project src/Remote.Adb.Console -- emulator list
 dotnet run --project src/Remote.Adb.Console -- emulator start <avd-name>
+
+# Wireless devices (pair prompts for the code so it stays out of your shell history)
+dotnet run --project src/Remote.Adb.Console -- wireless pair 192.168.1.20:37123
+dotnet run --project src/Remote.Adb.Console -- wireless connect 192.168.1.20:41235
+dotnet run --project src/Remote.Adb.Console -- wireless disconnect 192.168.1.20:41235
 ```
 
 Run the console with no arguments for the full command list. Add `--verbose` to any command to print each tool it

@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Moq;
 using Remote.Adb.Core.Adb;
+using Remote.Adb.Core.Adb.Wireless;
 using Remote.Adb.Core.Common;
 using Remote.Adb.Core.Diagnostics;
 using Remote.Adb.Core.Emulators;
@@ -11,6 +12,7 @@ using Remote.Adb.Desktop.Common;
 using Remote.Adb.Desktop.Common.Notifications;
 using Remote.Adb.Desktop.Common.Threading;
 using Remote.Adb.Desktop.Devices;
+using Remote.Adb.Desktop.Devices.Wireless;
 using Remote.Adb.Desktop.Logging;
 using Remote.Adb.Desktop.Settings;
 using Remote.Adb.Desktop.Shell;
@@ -69,6 +71,8 @@ public class MainWindowViewModelTests
             (_, _) => null!,
             Mock.Of<IAvdProvisioningService>(),
             Mock.Of<IConfirmDialog>(),
+            Mock.Of<IWirelessDeviceDialog>(),
+            Mock.Of<IWirelessAdbService>(),
             Notifications.Object,
             new FakeTimerFactory());
 

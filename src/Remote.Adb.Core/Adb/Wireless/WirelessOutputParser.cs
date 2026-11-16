@@ -1,0 +1,227 @@
+using Remote.Adb.Core.Common;
+
+namespace Remote.Adb.Core.Adb.Wireless;
+
+/// <summary>
+/// Pure parsing of adb's wireless-debugging commands (<c>connect</c>, <c>disconnect</c>, <c>pair</c>,
+/// <c>mdns services</c>). The messages are adb's own (AOSP <c>client/transport_emulator.cpp</c>,
+/// <c>client/adb_wifi.cpp</c>, <c>client/transport_mdns.cpp</c>); parsing is over spans, allocating only what's kept.
+/// </summary>
+public static class WirelessOutputParser
+{
+    private const string MdnsHeader = "List of discovered mdns services";
+    private const string PairedPrefix = "Successfully paired to ";
+    private const string PairingPrompt = "Enter pairing code:";
+
+    private static ReadOnlySpan<char> FirstLine(string text)
+    {
+        foreach (var line in text.AsSpan().EnumerateLines())
+        {
+            var trimmed = line.Trim();
+            if (!trimmed.IsEmpty)
+            {
+                return trimmed;
+            }
+        }
+
+        return [];
+    }
+
+    // The most useful text adb printed: stderr if any (errors), else stdout, else the exit code.
+    private static string MessageOf(ProcessResult result)
+    {
+        var error = result.StandardError.Trim();
+        if (error.Length > 0)
+        {
+            return error;
+        }
+
+        var output = result.StandardOutput.Trim();
+        return output.Length > 0 ? output : $"adb exited with code {result.ExitCode}";
+    }
+
+    /// <summary>
+    /// Classifies <c>adb connect</c>. adb exits 0 whenever its server answered — even when the connection failed —
+    /// so the outcome comes from the message; a non-zero exit means adb couldn't reach (or start) its server.
+    /// </summary>
+    public static WirelessConnectResult ParseConnect(ProcessResult result)
+    {
+        if (!result.Success)
+        {
+            return new WirelessConnectResult(WirelessConnectOutcome.ServerUnavailable, MessageOf(result));
+        }
+
+        var line = FirstLine(result.StandardOutput);
+        if (line.IsEmpty)
+        {
+            line = FirstLine(result.StandardError);
+        }
+
+        // "already connected to" contains "connected to", so it must be tested first.
+        var outcome = line switch
+        {
+            _ when line.StartsWith("already connected to", StringComparison.Ordinal) => WirelessConnectOutcome.AlreadyConnected,
+            _ when line.StartsWith("connected to", StringComparison.Ordinal) => WirelessConnectOutcome.Connected,
+            _ when line.StartsWith("failed to authenticate to", StringComparison.Ordinal) => WirelessConnectOutcome.AuthenticationFailed,
+            _ when line.StartsWith("cannot resolve host", StringComparison.Ordinal)
+                   || line.StartsWith("failed to resolve host", StringComparison.Ordinal) => WirelessConnectOutcome.ResolveFailed,
+            _ when line.StartsWith("failed to connect to", StringComparison.Ordinal)
+                   || line.StartsWith("cannot connect to", StringComparison.Ordinal) => WirelessConnectOutcome.ConnectionFailed,
+            _ when line.StartsWith("empty address", StringComparison.Ordinal) => WirelessConnectOutcome.InvalidAddress,
+            _ => WirelessConnectOutcome.Unknown,
+        };
+
+        return new WirelessConnectResult(outcome, line.ToString());
+    }
+
+    /// <summary>
+    /// Parses <c>adb disconnect</c>: <c>disconnected …</c> (exit 0) on success, <c>error: no such device …</c> (exit 1)
+    /// when the serial isn't connected.
+    /// </summary>
+    public static WirelessResult ParseDisconnect(ProcessResult result)
+    {
+        var line = FirstLine(result.StandardOutput);
+        var success = result.Success && line.StartsWith("disconnected", StringComparison.Ordinal);
+        return new WirelessResult(success, success ? line.ToString() : MessageOf(result));
+    }
+
+    /// <summary>
+    /// Parses the output of <c>adb -s &lt;serial&gt; shell ip route</c> for the device's Wi-Fi address: the
+    /// <c>src</c> of a route on a <c>wlan*</c> interface, else of the first route that has one.
+    /// </summary>
+    public static string? ParseIpRouteSource(string output)
+    {
+        string? fallback = null;
+
+        foreach (var rawLine in output.AsSpan().EnumerateLines())
+        {
+            var source = TokenAfter(rawLine, "src");
+            if (source.IsEmpty)
+            {
+                continue;
+            }
+
+            if (TokenAfter(rawLine, "dev").StartsWith("wlan", StringComparison.Ordinal))
+            {
+                return source.ToString();
+            }
+
+            fallback ??= source.ToString();
+        }
+
+        return fallback;
+    }
+
+    /// <summary>
+    /// Parses <c>adb mdns services</c>: a header line, then one tab-separated
+    /// <c>instance&lt;TAB&gt;type&lt;TAB&gt;ip:port</c> line per service. Unparseable lines are skipped.
+    /// </summary>
+    public static IReadOnlyList<MdnsService> ParseMdnsServices(string output)
+    {
+        var services = new List<MdnsService>();
+
+        foreach (var rawLine in output.AsSpan().EnumerateLines())
+        {
+            var line = rawLine.Trim();
+            if (line.IsEmpty || line.StartsWith(MdnsHeader, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            // Instance names can contain spaces (a QR pairing name, a user-named device), so split on tabs only.
+            var firstTab = line.IndexOf('\t');
+            if (firstTab <= 0)
+            {
+                continue;
+            }
+
+            var instance = line[..firstTab].Trim();
+            var rest = line[(firstTab + 1)..];
+            var secondTab = rest.IndexOf('\t');
+            if (secondTab <= 0)
+            {
+                continue;
+            }
+
+            var type = rest[..secondTab].Trim();
+            var address = rest[(secondTab + 1)..].Trim();
+            var colon = address.LastIndexOf(':');
+            if (colon <= 0 || !int.TryParse(address[(colon + 1)..], out var port))
+            {
+                continue;
+            }
+
+            services.Add(new MdnsService(instance.ToString(), ParseServiceType(type), address[..colon].ToString(), port));
+        }
+
+        return services;
+    }
+
+    /// <summary>
+    /// Parses <c>adb pair</c>. Success is exit 0 plus <c>Successfully paired to &lt;host&gt; [guid=&lt;guid&gt;]</c> — the
+    /// line may follow adb's <c>Enter pairing code:</c> prompt when the code was supplied on stdin. adb reports most
+    /// pairing failures as a generic <c>error: protocol fault …</c>, which is passed through.
+    /// </summary>
+    public static WirelessPairResult ParsePair(ProcessResult result)
+    {
+        var output = result.StandardOutput.AsSpan();
+        var paired = output.IndexOf(PairedPrefix, StringComparison.Ordinal);
+
+        if (!result.Success || paired < 0)
+        {
+            return new WirelessPairResult(false, false, StripPrompt(MessageOf(result)));
+        }
+
+        var line = FirstLine(output[paired..].ToString());
+        string? guid = null;
+        var guidStart = line.IndexOf("[guid=", StringComparison.Ordinal);
+        if (guidStart >= 0)
+        {
+            var value = line[(guidStart + "[guid=".Length)..];
+            var end = value.IndexOf(']');
+            guid = (end >= 0 ? value[..end] : value).Trim().ToString();
+        }
+
+        return new WirelessPairResult(true, false, line.ToString(), string.IsNullOrEmpty(guid) ? null : guid);
+    }
+
+    private static MdnsServiceType ParseServiceType(ReadOnlySpan<char> type)
+    {
+        // adb may print the type with a trailing "." or ".local." — compare on the bare "_name._tcp".
+        var local = type.IndexOf(".local", StringComparison.Ordinal);
+        var bare = (local >= 0 ? type[..local] : type).TrimEnd('.');
+
+        return bare switch
+        {
+            "_adb-tls-connect._tcp" => MdnsServiceType.Connect,
+            "_adb-tls-pairing._tcp" => MdnsServiceType.Pairing,
+            "_adb._tcp" => MdnsServiceType.Legacy,
+            _ => MdnsServiceType.Unknown,
+        };
+    }
+
+    private static string StripPrompt(string message) =>
+        message.StartsWith(PairingPrompt, StringComparison.Ordinal) ? message[PairingPrompt.Length..].Trim() : message;
+
+    // The whitespace-delimited token following `keyword` in `line` (e.g. the address after "src"), or empty.
+    private static ReadOnlySpan<char> TokenAfter(ReadOnlySpan<char> line, string keyword)
+    {
+        var rest = line;
+        while (!rest.IsEmpty)
+        {
+            rest = rest.TrimStart();
+            var end = rest.IndexOfAny(' ', '\t');
+            var token = end < 0 ? rest : rest[..end];
+            rest = end < 0 ? [] : rest[end..];
+
+            if (token.SequenceEqual(keyword))
+            {
+                rest = rest.TrimStart();
+                var valueEnd = rest.IndexOfAny(' ', '\t');
+                return valueEnd < 0 ? rest : rest[..valueEnd];
+            }
+        }
+
+        return [];
+    }
+}

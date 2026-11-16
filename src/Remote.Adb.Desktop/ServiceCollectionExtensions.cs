@@ -5,6 +5,7 @@ using Remote.Adb.Desktop.Common;
 using Remote.Adb.Desktop.Common.Notifications;
 using Remote.Adb.Desktop.Common.Threading;
 using Remote.Adb.Desktop.Devices;
+using Remote.Adb.Desktop.Devices.Wireless;
 using Remote.Adb.Desktop.Logging;
 using Remote.Adb.Desktop.Settings;
 using Remote.Adb.Desktop.Shell;
@@ -41,7 +42,13 @@ public static class ServiceCollectionExtensions
         services.AddTransient<CreateAvdViewModel>();
         services.AddTransient<Func<CreateAvdViewModel>>(provider => provider.GetRequiredService<CreateAvdViewModel>);
 
+        // A fresh "Add wireless device" VM per dialog open (the dialog service is a singleton).
+        services.AddSingleton<IWirelessDeviceDialog, WirelessDeviceDialog>();
+        services.AddTransient<AddWirelessDeviceViewModel>();
+        services.AddTransient<Func<AddWirelessDeviceViewModel>>(provider => provider.GetRequiredService<AddWirelessDeviceViewModel>);
+
         services.AddHostedService<DeviceCatalogWarmup>();
+        services.AddHostedService<WirelessReconnect>();
         services.AddHostedService<TunnelAutoConnect>();
 
         services.AddTransient<MainWindow>();

@@ -67,7 +67,7 @@ When a CCSWE.Avalonia.* library publishes, `.github/workflows/update-dependencie
 
 Projects in `src/Remote.Adb.slnx`:
 
-- **`Remote.Adb.Core`** — class library holding all domain logic: models, services (process execution, Android SDK location, emulator management, adb devices, SSH tunnel), and the `AddRemoteAdbCore()` DI registration extension. Both front-ends depend on it; it has no UI dependency.
+- **`Remote.Adb.Core`** — class library holding all domain logic: models, services (process execution, Android SDK location, emulator management, adb devices, wireless connect/pair (`Adb/Wireless/`), SSH tunnel), and the `AddRemoteAdbCore()` DI registration extension. Both front-ends depend on it; it has no UI dependency.
 - **`Remote.Adb.Desktop`** — the Avalonia desktop GUI (`WinExe`), MVVM.
 - **`Remote.Adb.Console`** — the CLI front-end exposing the same Core functionality.
 - **`Remote.Adb.Core.UnitTests`** / **`Remote.Adb.Desktop.UnitTests`** — NUnit tests for Core / Desktop.

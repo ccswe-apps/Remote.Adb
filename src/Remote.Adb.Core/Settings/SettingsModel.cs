@@ -49,4 +49,10 @@ public sealed class SettingsModel
 
     /// <summary>The remote port the tunnel binds (the port the remote adb client connects to).</summary>
     public int TunnelRemotePort { get; set; } = 5037;
+
+    /// <summary>
+    /// Wireless device addresses (<c>host:port</c>) connected by hand, reconnected whenever the local adb server
+    /// restarts (which drops every network device).
+    /// </summary>
+    public List<string> WirelessAddresses { get; set; } = [];
 }

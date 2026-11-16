@@ -81,15 +81,22 @@
                 </Panel>
             </Panel>
 
-            <!-- Overflow column (virtual only). On physical rows the column is empty but still reserves the
-                 shared width, so the primary-action column stays aligned with the emulator rows.
-                 Flyout items can't reach the ItemsControl ancestor, so Delete binds to the DeleteCommand the
-                 row exposes (which the flyout inherits as its DataContext). -->
+            <!-- Overflow column: AVDs (cold boot, delete) and wireless devices (disconnect). On USB rows the column
+                 is empty but still reserves the shared width, so the primary-action column stays aligned.
+                 Flyout items can't reach the ItemsControl ancestor, so they bind to the commands the row exposes
+                 (which the flyout inherits as its DataContext). -->
             <Button Grid.Column="3" Classes="Icon" Margin="4,0,0,0" VerticalAlignment="Center"
-                    IsVisible="{Binding IsVirtual}" ToolTip.Tip="More actions">
+                    IsVisible="{Binding HasOverflow}" ToolTip.Tip="More actions">
                 <Button.Flyout>
                     <MenuFlyout>
-                        <MenuItem Header="Cold boot"
+                        <MenuItem Header="Disconnect" IsVisible="{Binding IsWireless}"
+                                  Command="{Binding DisconnectCommand}" CommandParameter="{Binding}">
+                            <MenuItem.Icon>
+                                <PathIcon Data="{StaticResource IconWifiHigh}" Width="16" Height="16"
+                                          Foreground="{DynamicResource OnSurfaceVariant}"/>
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Header="Cold boot" IsVisible="{Binding IsVirtual}"
                                   Command="{Binding ColdBootCommand}" CommandParameter="{Binding}"
                                   IsEnabled="{Binding ShowStart}">
                             <MenuItem.Icon>
@@ -97,8 +104,8 @@
                                           Foreground="{DynamicResource OnSurfaceVariant}"/>
                             </MenuItem.Icon>
                         </MenuItem>
-                        <Separator/>
-                        <MenuItem Header="Delete" Foreground="{DynamicResource Error}"
+                        <Separator IsVisible="{Binding IsVirtual}"/>
+                        <MenuItem Header="Delete" Foreground="{DynamicResource Error}" IsVisible="{Binding IsVirtual}"
                                   Command="{Binding DeleteCommand}" CommandParameter="{Binding}"
                                   IsEnabled="{Binding !IsRunning}">
                             <MenuItem.Icon>

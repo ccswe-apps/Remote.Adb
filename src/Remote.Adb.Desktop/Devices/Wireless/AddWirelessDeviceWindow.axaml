@@ -1,0 +1,34 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wl="using:Remote.Adb.Desktop.Devices.Wireless"
+        x:Class="Remote.Adb.Desktop.Devices.Wireless.AddWirelessDeviceWindow"
+        x:DataType="wl:AddWirelessDeviceViewModel"
+        Title="Add wireless device"
+        Width="480" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        FontFamily="{DynamicResource BodyFontFamily}"
+        Background="{DynamicResource Surface}">
+
+    <!-- Pair first (Android 11+), or connect directly by address. Devices connect through the local adb server, so
+         they're also visible on the remote host through the tunnel. -->
+    <StackPanel Margin="24" Spacing="16">
+        <TextBlock Classes="TitleMedium" Foreground="{DynamicResource OnSurfaceStrong}" Text="Add wireless device"/>
+
+        <Border Classes="Card Filled" Padding="12,8" IsVisible="{Binding PairedNotice, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+            <TextBlock Classes="BodySmall" Text="{Binding PairedNotice}" TextWrapping="Wrap" Foreground="{DynamicResource OnSurface}"/>
+        </Border>
+
+        <TabControl SelectedIndex="{Binding SelectedTab}">
+            <TabItem Header="Pair">
+                <wl:PairingCodeView DataContext="{Binding Pair}" Margin="0,16,0,0"/>
+            </TabItem>
+            <TabItem Header="Connect">
+                <wl:ConnectAddressView DataContext="{Binding Connect}" Margin="0,16,0,0"/>
+            </TabItem>
+        </TabControl>
+
+        <Button Classes="Text" Content="Cancel" Command="{Binding CancelCommand}" HorizontalAlignment="Right" IsCancel="True"/>
+    </StackPanel>
+
+</Window>
