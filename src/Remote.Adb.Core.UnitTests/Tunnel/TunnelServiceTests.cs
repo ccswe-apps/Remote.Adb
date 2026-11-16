@@ -33,7 +33,7 @@ public class TunnelServiceTests
         string? ssh = SshPath)
     {
         adbServer = new Mock<IAdbServerService>();
-        adbServer.Setup(a => a.StartAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        adbServer.Setup(a => a.EnsureOwnServerAsync(It.IsAny<CancellationToken>())).ReturnsAsync(true);
         adbServer.Setup(a => a.IsRunningAsync(It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
         var settings = new Mock<ISettingsService>();
@@ -136,7 +136,7 @@ public class TunnelServiceTests
 
             Assert.That(service.Status.State, Is.EqualTo(TunnelState.Connected));
             Assert.That(service.Status.Message, Does.Contain("127.0.0.1:5037"));
-            adbServer.Verify(a => a.StartAsync(It.IsAny<CancellationToken>()), Times.Once);
+            adbServer.Verify(a => a.EnsureOwnServerAsync(It.IsAny<CancellationToken>()), Times.Once);
             processRunner.Verify(
                 r => r.StartSession(SshPath, It.Is<IReadOnlyList<string>>(a =>
                     a.Contains("-N") && a.Contains("-R") && a.Contains("5037:127.0.0.1:5037")

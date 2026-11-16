@@ -139,8 +139,14 @@ public partial class TunnelViewModel : ViewModelBase, IActivatable
     {
         try
         {
-            await _adbServer.RestartAsync();
-            _notifications.Show("ADB server restarted", "The local adb server was restarted.", NotificationSeverity.Success);
+            if (await _adbServer.RestartAsync())
+            {
+                _notifications.Show("ADB server restarted", "The local adb server was restarted.", NotificationSeverity.Success);
+            }
+            else
+            {
+                _notifications.Show("Couldn't restart adb", "The local adb server couldn't be stopped or didn't come back up. See the log for details.", NotificationSeverity.Error);
+            }
         }
         catch (ProcessLaunchException exception)
         {

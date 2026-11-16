@@ -21,14 +21,24 @@ Planning lives in `docs/`, not here — consult it before starting work, and kee
 
 When a milestone lands, **delete its task doc and remove its ROADMAP row** — don't leave a ✅. Where a task doc and the code disagree, the code wins and the doc needs reconciling.
 
-## Reference: SSH/adb constraints the tunnel must preserve
+## Reference: SSH/adb constraints
 
-The reverse-tunnel workflow encodes hard-won knowledge the `TunnelService` implementation preserves:
+Hard-won knowledge the tunnel and adb code preserve.
+
+**The tunnel (`TunnelService`):**
 
 - The reverse tunnel is `ssh -o ExitOnForwardFailure=yes -N -R <remote>:127.0.0.1:<local> <host>` (ports from `TunnelRemotePort`/`TunnelLocalPort` in `SettingsModel`). `ExitOnForwardFailure` turns a silent bind failure into a visible non-zero exit.
 - Kill the remote `adb` with `pkill -x adb`, **not** `adb kill-server` — `kill-server` does a localhost network round-trip that can hang on a stale/forwarded `127.0.0.1:5037`.
 - Use the literal `127.0.0.1` (not `localhost`) for the forward target — Windows OpenSSH may resolve `localhost` to IPv6 `::1`, but the Windows `adb` server binds only IPv4, causing refused connections.
 - A remote IntelliJ Android plugin respawns `adb` on Gradle sync and races the bind — hence the kill-then-bind-then-retry loop.
+
+**The local adb server (`Adb/`):**
+
+- **Every adb invocation goes through `IAdbRunner`** — never `IProcessRunner` with `IAndroidSdk.AdbPath` (`AdbInvocationGuardTests` enforces it). Any adb command can start the server, so the runner gives every one the same environment: `ADB_REJECT_KILL_SERVER=1`, which makes a server the app starts refuse a `kill-server` — including one a version-mismatched remote adb sends through the tunnel.
+- Because the app's servers reject kills, the app stops the server by **killing its process** (`IAdbServerProcesses`, matched by the configured adb's full path), never `adb kill-server`.
+- A newer local adb (SDK upgrade, a different adb on PATH) can't replace a stale server that rejects its kill; the runner detects that (`doesn't match this client` / `rejected by remote server`), kills the server process, and retries once.
+- A server started outside the app (Android Studio, a terminal) lacks the variable, so connecting the tunnel replaces it (`IAdbServerService.EnsureOwnServerAsync`). The runner knows the app started the server because adb reports `daemon started successfully`.
+- The adb server's port is `ANDROID_ADB_SERVER_PORT` or 5037 (`IAdbRunner.ServerPort`) — not the tunnel's configurable local port.
 
 ## Git Commits
 
@@ -194,6 +204,14 @@ Within a class, group members by kind in this order, and alphabetize strictly by
 5. Methods
 
 Access modifiers do not affect ordering — when you go looking for `GetFoo()` you don't care whether it's public, internal, or private, so `CreateFoo()` comes before `GetFoo()` regardless. Nested types go at the bottom of the file, after all members of the outer type.
+
+## Shared code (DRY)
+
+Write a piece of logic once and share it; don't copy it into a second place.
+
+- **One runner per external tool.** Every invocation of a given tool goes through its single shared runner — `IAdbRunner` for adb — so cross-cutting behavior (environment, logging, recovery) lives in one place. Don't call `IProcessRunner` with a tool path a runner already owns.
+- **Extract before you copy.** When you're about to write something that already exists — a poll loop, a parse step, a view-model command pattern, a dialog plumbing step — extract a shared helper (or reuse the one that's there) instead. Reviews treat duplication as a defect.
+- **Place it by reach.** A helper used by one feature lives in that feature's folder; one used across features goes in `Common/` (see feature-first organization above).
 
 ## Frozen collections for static lookups
 

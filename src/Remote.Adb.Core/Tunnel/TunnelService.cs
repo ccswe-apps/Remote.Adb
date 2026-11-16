@@ -53,8 +53,9 @@ public sealed class TunnelService : ITunnelService, IAsyncDisposable
     // Internal so tests can shorten it.
     internal TimeSpan AttemptTimeout { get; set; } = TimeSpan.FromSeconds(15);
 
-    // While connected, how often to probe that the local adb server is still listening — the remote can kill it
-    // through the forward (`adb kill-server`), which leaves the ssh forward bound but pointing at a dead port.
+    // While connected, how often to probe that the local adb server is still listening. A server the app started
+    // rejects a remote `adb kill-server` sent through the forward, but it can still die (crash, or killed outside the
+    // app), which leaves the ssh forward bound but pointing at a dead port.
     // Internal so tests can shorten it.
     internal TimeSpan HealthCheckInterval { get; set; } = TimeSpan.FromSeconds(5);
 
@@ -189,7 +190,7 @@ public sealed class TunnelService : ITunnelService, IAsyncDisposable
                 }
 
                 // Ride through a brief outage (a deliberate `RestartAsync` bounces the server for ~1s); only act
-                // on a sustained one (the remote ran `adb kill-server` through the forward).
+                // on a sustained one (the server died and stayed down).
                 if (++failures < failuresBeforeFault)
                 {
                     continue;
@@ -378,7 +379,12 @@ public sealed class TunnelService : ITunnelService, IAsyncDisposable
 
         try
         {
-            await _adbServer.StartAsync(cancellationToken);
+            if (!await _adbServer.EnsureOwnServerAsync(cancellationToken))
+            {
+                // Still usable if something is listening (checked next) — but it may be a server started outside the
+                // app, which a remote `adb kill-server` could take down.
+                _logger.LogWarning("Couldn't confirm the local adb server was started by the app, so it may not reject a remote kill-server.");
+            }
 
             // The forward target is the local adb server; if it isn't listening (e.g. start-server couldn't bring
             // it back), the tunnel would be useless — fail now rather than declare a dead-target "connection".

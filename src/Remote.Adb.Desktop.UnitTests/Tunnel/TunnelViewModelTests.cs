@@ -123,6 +123,38 @@ public class TunnelViewModelTests
     public class When_RestartAdbServerCommand : TunnelViewModelTests
     {
         [Test]
+        public async Task It_shows_a_success_toast_when_the_restart_succeeds()
+        {
+            AdbServer.Setup(a => a.RestartAsync(It.IsAny<CancellationToken>())).ReturnsAsync(true);
+            var viewModel = CreateViewModel();
+
+            await viewModel.RestartAdbServerCommand.ExecuteAsync(null);
+
+            Notifications.Verify(
+                n => n.Show("ADB server restarted", It.IsAny<string>(), NotificationSeverity.Success, It.IsAny<TimeSpan?>(), It.IsAny<Action?>()),
+                Times.Once);
+            Notifications.Verify(
+                n => n.Show("Couldn't restart adb", It.IsAny<string>(), It.IsAny<NotificationSeverity>(), It.IsAny<TimeSpan?>(), It.IsAny<Action?>()),
+                Times.Never);
+        }
+
+        [Test]
+        public async Task It_shows_an_error_toast_and_no_success_toast_when_the_restart_returns_false()
+        {
+            AdbServer.Setup(a => a.RestartAsync(It.IsAny<CancellationToken>())).ReturnsAsync(false);
+            var viewModel = CreateViewModel();
+
+            await viewModel.RestartAdbServerCommand.ExecuteAsync(null);
+
+            Notifications.Verify(
+                n => n.Show("Couldn't restart adb", It.IsAny<string>(), NotificationSeverity.Error, It.IsAny<TimeSpan?>(), It.IsAny<Action?>()),
+                Times.Once);
+            Notifications.Verify(
+                n => n.Show("ADB server restarted", It.IsAny<string>(), It.IsAny<NotificationSeverity>(), It.IsAny<TimeSpan?>(), It.IsAny<Action?>()),
+                Times.Never);
+        }
+
+        [Test]
         public async Task It_shows_an_error_toast_when_the_restart_fails()
         {
             AdbServer

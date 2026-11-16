@@ -18,14 +18,12 @@ public sealed class DeviceDetailsResolver : IDeviceDetailsResolver
         "ro.product.cpu.abi",
     ];
 
-    private readonly IAndroidSdk _androidSdk;
+    private readonly IAdbRunner _adb;
     private readonly ConcurrentDictionary<string, DeviceDetails> _cache = new(StringComparer.Ordinal);
-    private readonly IProcessRunner _processRunner;
 
-    public DeviceDetailsResolver(IProcessRunner processRunner, IAndroidSdk androidSdk)
+    public DeviceDetailsResolver(IAdbRunner adb)
     {
-        _processRunner = processRunner;
-        _androidSdk = androidSdk;
+        _adb = adb;
     }
 
     /// <inheritdoc />
@@ -42,7 +40,7 @@ public sealed class DeviceDetailsResolver : IDeviceDetailsResolver
         ProcessResult result;
         try
         {
-            result = await _processRunner.RunAsync(_androidSdk.AdbPath, ["-s", serial, "shell", script], cancellationToken: cancellationToken);
+            result = await _adb.RunAsync(["-s", serial, "shell", script], cancellationToken: cancellationToken);
         }
         catch (ProcessLaunchException)
         {

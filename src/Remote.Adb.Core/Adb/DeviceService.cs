@@ -5,14 +5,12 @@ namespace Remote.Adb.Core.Adb;
 /// <inheritdoc />
 public sealed class DeviceService : IDeviceService
 {
-    private readonly IAndroidSdk _androidSdk;
+    private readonly IAdbRunner _adb;
     private readonly IDeviceDetailsResolver _detailsResolver;
-    private readonly IProcessRunner _processRunner;
 
-    public DeviceService(IProcessRunner processRunner, IAndroidSdk androidSdk, IDeviceDetailsResolver detailsResolver)
+    public DeviceService(IAdbRunner adb, IDeviceDetailsResolver detailsResolver)
     {
-        _processRunner = processRunner;
-        _androidSdk = androidSdk;
+        _adb = adb;
         _detailsResolver = detailsResolver;
     }
 
@@ -20,7 +18,7 @@ public sealed class DeviceService : IDeviceService
     public async Task<IReadOnlyList<AdbDevice>> ListAsync(CancellationToken cancellationToken = default)
     {
         // A non-zero exit is already logged by the process runner, with its exit code and output.
-        var result = await _processRunner.RunAsync(_androidSdk.AdbPath, ["devices", "-l"], cancellationToken: cancellationToken);
+        var result = await _adb.RunAsync(["devices", "-l"], cancellationToken: cancellationToken);
         var devices = AdbOutputParser.ParseDeviceList(result.StandardOutput);
 
         // Enrich online devices with friendly details — cached by serial, so this is one getprop per device once.

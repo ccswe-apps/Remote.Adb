@@ -10,50 +10,39 @@ namespace Remote.Adb.Core.UnitTests.Emulators;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public class EmulatorServiceTests
 {
-    private const string AdbPath = "adb";
     private const string EmulatorPath = "emulator";
 
-    private static EmulatorService CreateService(Mock<IProcessRunner> processRunner, IReadOnlyDictionary<string, AvdMetadata>? catalog = null)
+    private static EmulatorService CreateService(Mock<IProcessRunner> processRunner, AdbRunnerMock? adb = null, IReadOnlyDictionary<string, AvdMetadata>? catalog = null)
     {
         var sdk = new Mock<IAndroidSdk>();
-        sdk.SetupGet(s => s.AdbPath).Returns(AdbPath);
         sdk.SetupGet(s => s.EmulatorPath).Returns(EmulatorPath);
 
         var avdCatalog = new Mock<IAvdCatalog>();
         avdCatalog.Setup(c => c.Read()).Returns(catalog ?? new Dictionary<string, AvdMetadata>());
 
-        return new EmulatorService(processRunner.Object, sdk.Object, avdCatalog.Object, new LoggerFake<EmulatorService>());
+        return new EmulatorService(processRunner.Object, (adb ?? new AdbRunnerMock()).Object, sdk.Object, avdCatalog.Object, new LoggerFake<EmulatorService>());
     }
 
-    public class When_ListAsync_Is_Called
+    private static Mock<IProcessRunner> EmulatorListing(string avds)
+    {
+        var processRunner = new Mock<IProcessRunner>();
+        processRunner
+            .Setup(r => r.RunAsync(EmulatorPath, It.Is<IReadOnlyList<string>>(a => a.SequenceEqual(new[] { "-list-avds" })), It.IsAny<string?>(), It.IsAny<IReadOnlyDictionary<string, string>?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProcessResult(0, avds, string.Empty));
+
+        return processRunner;
+    }
+
+    public class When_ListAsync_Is_Called : EmulatorServiceTests
     {
         [Test]
         public async Task It_marks_running_avds_with_their_serial()
         {
-            var processRunner = new Mock<IProcessRunner>();
-            processRunner
-                .Setup(r => r.RunAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string?>(), It.IsAny<IReadOnlyDictionary<string, string>?>(), It.IsAny<CancellationToken>()))
-                .Returns((string _, IReadOnlyList<string> arguments, string? _, IReadOnlyDictionary<string, string>? _, CancellationToken _) =>
-                {
-                    if (arguments.Contains("-list-avds"))
-                    {
-                        return Task.FromResult(new ProcessResult(0, "Pixel_6_API_34\nNexus_5\n", string.Empty));
-                    }
-
-                    if (arguments is ["devices"])
-                    {
-                        return Task.FromResult(new ProcessResult(0, "List of devices attached\nemulator-5554\tdevice\n", string.Empty));
-                    }
-
-                    if (arguments.Contains("avd") && arguments.Contains("name"))
-                    {
-                        return Task.FromResult(new ProcessResult(0, "Pixel_6_API_34\nOK\n", string.Empty));
-                    }
-
-                    return Task.FromResult(new ProcessResult(0, string.Empty, string.Empty));
-                });
-
-            var service = CreateService(processRunner);
+            var processRunner = EmulatorListing("Pixel_6_API_34\nNexus_5\n");
+            var adb = new AdbRunnerMock();
+            adb.Returns(["devices"], "List of devices attached\nemulator-5554\tdevice\n");
+            adb.Returns(["-s", "emulator-5554", "emu", "avd", "name"], "Pixel_6_API_34\nOK\n");
+            var service = CreateService(processRunner, adb);
 
             var devices = await service.ListAsync();
 
@@ -70,25 +59,15 @@ public class EmulatorServiceTests
         [Test]
         public async Task It_uses_the_catalog_display_name_and_falls_back_to_the_id()
         {
-            var processRunner = new Mock<IProcessRunner>();
-            processRunner
-                .Setup(r => r.RunAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string?>(), It.IsAny<IReadOnlyDictionary<string, string>?>(), It.IsAny<CancellationToken>()))
-                .Returns((string _, IReadOnlyList<string> arguments, string? _, IReadOnlyDictionary<string, string>? _, CancellationToken _) =>
-                {
-                    if (arguments.Contains("-list-avds"))
-                    {
-                        return Task.FromResult(new ProcessResult(0, "Pixel_6_API_34\nNexus_5\n", string.Empty));
-                    }
-
-                    return Task.FromResult(new ProcessResult(0, "List of devices attached\n", string.Empty));
-                });
-
+            var processRunner = EmulatorListing("Pixel_6_API_34\nNexus_5\n");
+            var adb = new AdbRunnerMock();
+            adb.Returns(["devices"], "List of devices attached\n");
             var catalog = new Dictionary<string, AvdMetadata>
             {
                 ["Pixel_6_API_34"] = new("Pixel_6_API_34", "Pixel 6 API 34", "Phone"),
             };
 
-            var service = CreateService(processRunner, catalog);
+            var service = CreateService(processRunner, adb, catalog);
 
             var devices = await service.ListAsync();
 
@@ -102,7 +81,7 @@ public class EmulatorServiceTests
         }
     }
 
-    public class When_StartAsync_Is_Called
+    public class When_StartAsync_Is_Called : EmulatorServiceTests
     {
         [Test]
         public async Task It_appends_no_snapshot_load_when_cold_booting()
@@ -133,23 +112,18 @@ public class EmulatorServiceTests
         }
     }
 
-    public class When_StopAsync_Is_Called
+    public class When_StopAsync_Is_Called : EmulatorServiceTests
     {
         [Test]
         public async Task It_invokes_adb_emu_kill_for_the_serial()
         {
-            var processRunner = new Mock<IProcessRunner>();
-            processRunner
-                .Setup(r => r.RunAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string?>(), It.IsAny<IReadOnlyDictionary<string, string>?>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new ProcessResult(0, string.Empty, string.Empty));
-
-            var service = CreateService(processRunner);
+            var adb = new AdbRunnerMock();
+            adb.Returns(["-s", "emulator-5554", "emu", "kill"], string.Empty);
+            var service = CreateService(new Mock<IProcessRunner>(), adb);
 
             await service.StopAsync("emulator-5554");
 
-            processRunner.Verify(
-                r => r.RunAsync(AdbPath, It.Is<IReadOnlyList<string>>(arguments => arguments.SequenceEqual(new[] { "-s", "emulator-5554", "emu", "kill" })), It.IsAny<string?>(), It.IsAny<IReadOnlyDictionary<string, string>?>(), It.IsAny<CancellationToken>()),
-                Times.Once);
+            adb.Verify(["-s", "emulator-5554", "emu", "kill"], Times.Once());
         }
     }
 }
