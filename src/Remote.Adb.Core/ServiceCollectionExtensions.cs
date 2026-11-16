@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using JetBrains.Annotations;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Remote.Adb.Core.Adb;
 using Remote.Adb.Core.Adb.Wireless;
@@ -36,6 +37,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAvdProvisioningService, AvdProvisioningService>();
         services.AddSingleton<IEmulatorService, EmulatorService>();
         services.AddSingleton<IExecutableFinder, ExecutableFinder>();
+        services.AddSingleton(provider => ListeningProcessFinder.Create(provider.GetRequiredService<IProcessRunner>()));
+        services.AddSingleton<IPortProbe, TcpPortProbe>();
+        services.AddSingleton<ISystemProcesses, SystemProcesses>();
+        services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<ISdkDiagnostics, SdkDiagnostics>();
         services.AddSingleton<ISettingsStore>(provider => new SettingsStore(
             provider.GetRequiredService<ILogger<SettingsStore>>(),

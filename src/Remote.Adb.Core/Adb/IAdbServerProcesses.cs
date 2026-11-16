@@ -7,9 +7,11 @@ namespace Remote.Adb.Core.Adb;
 internal interface IAdbServerProcesses
 {
     /// <summary>
-    /// Kills the adb server process(es) belonging to the configured adb and waits for them to exit. Returns
-    /// <see langword="true"/> when none remain (including when none were running), <see langword="false"/> when one
-    /// couldn't be identified or didn't exit in time.
+    /// Kills the adb server listening on <paramref name="port"/> — only that process, after checking it is an
+    /// <c>adb</c>, never other adb clients or another port's server — waits for it to exit and confirms the port is free.
+    /// Returns <see langword="true"/> when nothing listens on the port afterwards (including when nothing was running),
+    /// <see langword="false"/> when the listener couldn't be identified, isn't adb, didn't exit in time, or the port is
+    /// still taken.
     /// </summary>
-    Task<bool> KillAsync(CancellationToken cancellationToken = default);
+    Task<bool> KillAsync(int port, CancellationToken cancellationToken = default);
 }

@@ -1,5 +1,3 @@
-using System.ComponentModel;
-using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Remote.Adb.Core.Common;
 
@@ -8,127 +6,70 @@ namespace Remote.Adb.Core.Adb;
 /// <inheritdoc />
 internal sealed class AdbServerProcesses : IAdbServerProcesses
 {
-    private readonly IAndroidSdk _androidSdk;
-    private readonly ILogger<AdbServerProcesses> _logger;
+    private const string AdbProcessName = "adb";
 
-    public AdbServerProcesses(IAndroidSdk androidSdk, ILogger<AdbServerProcesses> logger)
+    private readonly IListeningProcessFinder _listeningProcesses;
+    private readonly ILogger<AdbServerProcesses> _logger;
+    private readonly IPortProbe _portProbe;
+    private readonly ISystemProcesses _processes;
+
+    public AdbServerProcesses(IListeningProcessFinder listeningProcesses, ISystemProcesses processes, IPortProbe portProbe, ILogger<AdbServerProcesses> logger)
     {
-        _androidSdk = androidSdk;
+        _listeningProcesses = listeningProcesses;
+        _processes = processes;
+        _portProbe = portProbe;
         _logger = logger;
     }
 
     /// <summary>How long to wait for a killed server to exit.</summary>
     internal TimeSpan KillTimeout { get; init; } = TimeSpan.FromSeconds(3);
 
-    // Only processes running the configured adb binary — never another SDK's adb or an unrelated tool's.
-    private List<Process> FindServers()
+    // Nothing to kill (or the listener vanished before it could be inspected): stopped means the port is free.
+    private async Task<bool> IsPortFreeAsync(int port, CancellationToken cancellationToken)
     {
-        var adbPath = _androidSdk.AdbPath;
-        var servers = new List<Process>();
-
-        if (!Path.IsPathRooted(adbPath))
+        if (!await _portProbe.IsListeningAsync(port, cancellationToken))
         {
-            // adb was found on PATH rather than in a known SDK, so there's no path to match against; killing by name
-            // alone could hit someone else's server.
-            _logger.LogWarning("Can't identify the adb server process: adb isn't resolved to a full path ({AdbPath}). Configure the Android SDK in Settings.", adbPath);
-            return servers;
+            return true;
         }
 
-        var target = Path.GetFullPath(adbPath);
-        var comparison = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-
-        foreach (var process in Process.GetProcessesByName(Path.GetFileNameWithoutExtension(target)))
-        {
-            if (IsServer(process, target, comparison))
-            {
-                servers.Add(process);
-            }
-            else
-            {
-                process.Dispose();
-            }
-        }
-
-        return servers;
-    }
-
-    private bool IsServer(Process process, string target, StringComparison comparison)
-    {
-        try
-        {
-            var path = process.MainModule?.FileName;
-            if (path is null || !string.Equals(Path.GetFullPath(path), target, comparison))
-            {
-                return false;
-            }
-
-            // On Linux, tell the long-lived server ("adb ... fork-server server") from short-lived client commands.
-            return !OperatingSystem.IsLinux() || ReadCommandLine(process.Id).Contains("fork-server", StringComparison.Ordinal);
-        }
-        catch (Exception exception) when (exception is Win32Exception or InvalidOperationException or IOException or UnauthorizedAccessException)
-        {
-            // Elevated, another user's, or already gone: it can't be identified, so leave it alone.
-            _logger.LogDebug(exception, "Skipping adb process {ProcessId}: couldn't read its path.", SafeId(process));
-            return false;
-        }
+        _logger.LogWarning("Something is listening on the adb server port {Port}, but its process can't be identified, so it can't be stopped.", port);
+        return false;
     }
 
     /// <inheritdoc />
-    public async Task<bool> KillAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> KillAsync(int port, CancellationToken cancellationToken = default)
     {
-        var servers = FindServers();
-        try
+        var processId = await _listeningProcesses.FindAsync(port, cancellationToken);
+        if (processId is null)
         {
-            if (servers.Count == 0)
-            {
-                return Path.IsPathRooted(_androidSdk.AdbPath);
-            }
-
-            foreach (var server in servers)
-            {
-                _logger.LogInformation("Stopping the local adb server (process {ProcessId}).", server.Id);
-                server.KillTree();
-            }
-
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(KillTimeout);
-
-            try
-            {
-                await Task.WhenAll(servers.Select(server => server.WaitForExitAsync(timeout.Token)));
-                return true;
-            }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            {
-                _logger.LogWarning("The local adb server didn't exit within {Timeout}.", KillTimeout);
-                return false;
-            }
+            return await IsPortFreeAsync(port, cancellationToken);
         }
-        finally
+
+        var name = _processes.GetName(processId.Value);
+        if (name is null)
         {
-            foreach (var server in servers)
-            {
-                server.Dispose();
-            }
+            return await IsPortFreeAsync(port, cancellationToken);
         }
-    }
 
-    private static string ReadCommandLine(int processId)
-    {
-        // /proc/<pid>/cmdline separates arguments with NULs.
-        var path = $"/proc/{processId}/cmdline";
-        return File.Exists(path) ? File.ReadAllText(path).Replace('\0', ' ') : string.Empty;
-    }
+        if (!string.Equals(name, AdbProcessName, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning("The adb server port {Port} is held by {ProcessName} (process {ProcessId}), not adb; leaving it alone.", port, name, processId);
+            return false;
+        }
 
-    private static int? SafeId(Process process)
-    {
-        try
+        _logger.LogInformation("Stopping the local adb server (process {ProcessId}) on port {Port}.", processId, port);
+        if (!await _processes.KillAsync(processId.Value, KillTimeout, cancellationToken))
         {
-            return process.Id;
+            _logger.LogWarning("The local adb server (process {ProcessId}) didn't exit within {Timeout}.", processId, KillTimeout);
+            return false;
         }
-        catch (InvalidOperationException)
+
+        if (await _portProbe.IsListeningAsync(port, cancellationToken))
         {
-            return null;
+            _logger.LogWarning("The adb server port {Port} is still taken after stopping process {ProcessId}.", port, processId);
+            return false;
         }
+
+        return true;
     }
 }
