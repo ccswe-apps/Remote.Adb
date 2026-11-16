@@ -1,6 +1,9 @@
+using JetBrains.Annotations;
+
 namespace Remote.Adb.Core.Adb;
 
 /// <summary>How a device is attached to the local adb server, derived from its serial shape.</summary>
+[PublicAPI]
 public enum DeviceConnection
 {
     /// <summary>A USB-attached physical device (a hardware serial).</summary>

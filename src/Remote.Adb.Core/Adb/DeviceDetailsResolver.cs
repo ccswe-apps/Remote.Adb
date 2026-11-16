@@ -4,7 +4,7 @@ using Remote.Adb.Core.Common;
 namespace Remote.Adb.Core.Adb;
 
 /// <inheritdoc />
-public sealed class DeviceDetailsResolver : IDeviceDetailsResolver
+internal sealed class DeviceDetailsResolver : IDeviceDetailsResolver
 {
     private static readonly IReadOnlyList<string> Properties =
     [

@@ -1,3 +1,4 @@
+using JetBrains.Annotations;
 using Remote.Adb.Core.Common;
 
 namespace Remote.Adb.Core.Emulators;
@@ -10,6 +11,7 @@ namespace Remote.Adb.Core.Emulators;
 /// <param name="ApiLevel">The Android API level (e.g. 34).</param>
 /// <param name="Tag">The image tag / services variant (e.g. <c>google_apis</c>, <c>google_apis_playstore</c>).</param>
 /// <param name="Abi">The ABI (e.g. <c>x86_64</c>, <c>arm64-v8a</c>).</param>
+[PublicAPI]
 public sealed record SystemImagePackage(string Package, int ApiLevel, string Tag, string Abi)
 {
     /// <summary>A friendly name for the image's services variant (<see cref="Tag"/>), e.g. "Google Play".</summary>

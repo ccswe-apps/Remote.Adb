@@ -3,7 +3,7 @@ using Remote.Adb.Core.Common;
 namespace Remote.Adb.Core.Adb;
 
 /// <inheritdoc />
-public sealed class DeviceService : IDeviceService
+internal sealed class DeviceService : IDeviceService
 {
     private readonly IAdbRunner _adb;
     private readonly IDeviceDetailsResolver _detailsResolver;

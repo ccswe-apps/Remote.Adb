@@ -1,9 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
-using NUnit.Framework;
 using Remote.Adb.Core.Common;
 using Remote.Adb.Core.Logging;
-using Remote.Adb.Core.UnitTests.Fakes;
+using Remote.Adb.Testing;
 
 namespace Remote.Adb.Core.UnitTests.Common;
 
@@ -11,8 +10,8 @@ namespace Remote.Adb.Core.UnitTests.Common;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public class ProcessRunnerTests
 {
-    protected RecordingLogger<ProcessRunner> Logger = null!;
-    protected ProcessRunner Runner = null!;
+    private protected RecordingLogger<ProcessRunner> Logger = null!;
+    private protected ProcessRunner Runner = null!;
 
     [SetUp]
     public void SetUp()
@@ -21,10 +20,10 @@ public class ProcessRunnerTests
         Runner = new ProcessRunner(Logger);
     }
 
-    protected IEnumerable<RecordedLog> Logged(int eventId) => Logger.Entries.Where(entry => entry.EventId.Id == eventId);
+    private protected IEnumerable<RecordedLog> Logged(int eventId) => Logger.Entries.Where(entry => entry.EventId.Id == eventId);
 
     // A portable shell invocation: cmd on Windows, sh elsewhere.
-    protected Task<ProcessResult> RunShellAsync(string script, CancellationToken cancellationToken = default) =>
+    private protected Task<ProcessResult> RunShellAsync(string script, CancellationToken cancellationToken = default) =>
         OperatingSystem.IsWindows()
             ? Runner.RunAsync("cmd.exe", ["/c", script], cancellationToken: cancellationToken)
             : Runner.RunAsync("sh", ["-c", script], cancellationToken: cancellationToken);

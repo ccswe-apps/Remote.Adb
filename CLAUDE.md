@@ -91,6 +91,7 @@ Projects in `src/Remote.Adb.slnx`:
 - **`Remote.Adb.Desktop`** — the Avalonia desktop GUI (`WinExe`), MVVM.
 - **`Remote.Adb.Console`** — the CLI front-end exposing the same Core functionality.
 - **`Remote.Adb.Core.UnitTests`** / **`Remote.Adb.Desktop.UnitTests`** — NUnit tests for Core / Desktop.
+- **`Remote.Adb.Testing`** — shared test helpers (fakes, mocks, `FakeTimeProvider`) referenced by the test projects.
 
 Both front-ends compose a `Microsoft.Extensions.DependencyInjection` service provider and call `AddRemoteAdbCore()` to register the shared services. Keep logic in Core; the GUI and CLI are thin shells over it.
 
@@ -125,19 +126,37 @@ The page inset for a scrollable view goes on the **scrolled content's `Margin`**
 
 Pattern: a full-bleed scroll container (no margin/padding) → scrolled content carries the inset as its `Margin`. The scrollbar reaches the edge and every item is reachable. Also, a scrollable screen hosted in the CCSWE `DrawerPage` must bound its `ScrollViewer` via a `Grid` `*` row (or a `Panel`), not a `DockPanel`, or it won't get a bounded viewport height.
 
-# Testing
+## Tests
 
-Tests use **NUnit**.
+- **Framework:** NUnit. **Mocking:** Moq.
+- Unit tests live in `Remote.Adb.Core.UnitTests` and `Remote.Adb.Desktop.UnitTests` (flat under `src/`, alongside the projects they test).
+- **Shared test helpers go in `Remote.Adb.Testing`:** `LoggerFake`, `RecordingLogger`, `AdbRunnerMock`, `FakeProcessSession`, and `FakeTimeProvider` (via `Microsoft.Extensions.TimeProvider.Testing`). Helpers that only make sense for one test project (e.g. Desktop's `FakeTimerFactory`, `FakeUiDispatcher`) stay in that project's `Fakes/`. Before writing a mock setup a second time, add it to a shared helper.
+- Every NUnit test project references `NUnit.Analyzers` (`PrivateAssets=all`) and has a `Usings.cs` with `global using NUnit.Framework;`.
+- Follow AAA (Arrange, Act, Assert) — separate the sections with blank lines, NOT with `// Arrange` / `// Act` / `// Assert` comments.
 
-## Class organization
+### Unit test conventions
 
-- Outer class name: `<ClassUnderTest>Tests`, decorated with `[SuppressMessage("ReSharper", "InconsistentNaming")]`. The outer class is NOT `sealed` — nested classes inherit from it.
-- Nested classes group tests by method or scenario: `When_<MethodName>_Is_Called`, inheriting the outer class.
-- Test methods describe expected behavior: `It_<expected_behavior>` (e.g., `It_Adds_UserAgent_Header`)
+- One outer class per type under test: `<ClassUnderTest>Tests`, decorated with `[SuppressMessage("ReSharper", "InconsistentNaming")]`. The outer class is NOT `sealed` (nested classes inherit from it); no `[TestFixture]`.
+- Nested classes group tests by method or scenario: `When_<MethodName>_Is_Called` (or `When_<scenario>`), inheriting the outer class.
+- Test methods describe behavior with a lowercase `It_` prefix: `It_returns_expected_result`, `It_logs_unhandled_exception`.
+- Shared fixture members on the outer class are `private protected` — they usually expose `internal` types, and only the nested classes need them.
+- Mock with Moq; mock `ILogger` with `LoggerFake` (or `RecordingLogger` when asserting on logs), never `new Mock<ILogger>()`. Prefer `ReturnsAsync(...)` / `ThrowsAsync(...)`. Await NUnit's async asserts (`await Assert.ThrowsAsync…`).
+- Group related assertions in `Assert.Multiple`.
+- **No real time, sockets or processes in unit tests.** Inject `TimeProvider` (production defaults to `TimeProvider.System`) and drive it with `FakeTimeProvider`; put network probes and process enumeration behind a seam and mock it. Timing knobs that remain are `internal TimeSpan` properties the test sets. The few tests that genuinely exercise a real process (`ProcessRunnerTests`) must stay fast, cross-platform (`cmd` on Windows, `sh` elsewhere) and deterministic.
+- Test seams are `internal` members exposed with `InternalsVisibleTo` — not public API added for tests.
 
 ```csharp
+[SuppressMessage("ReSharper", "InconsistentNaming")]
 public class SomeServiceTests
 {
+    private protected Mock<IDependency> Dependency = null!;
+
+    [SetUp]
+    public void SetUp()
+    {
+        Dependency = new Mock<IDependency>();
+    }
+
     public class When_GetAsync_Is_Called : SomeServiceTests
     {
         [Test]
@@ -146,97 +165,95 @@ public class SomeServiceTests
 }
 ```
 
-## Arrange-Act-Assert
-
-Follow the AAA pattern. Use blank lines to separate sections — do **not** use `// Arrange`, `// Act`, `// Assert` comments.
-
-## Mocking
-
-- Use **Moq** for mocking
-- `ILogger` should be mocked using the `LoggerFake` class, not `new Mock<ILogger>()`
-- Prefer `ReturnsAsync(...)` and `ThrowsAsync(...)` over manually setting up async mock methods
-
-## Running the app for manual testing
+### Running the app for manual testing
 
 Always launch it with `REMOTE_ADB_SETTINGS` pointing at a scratch file. Otherwise it uses the real settings file — and if tunnel auto-connect is on, every launch opens the user's real SSH tunnel (killing the remote `adb`). See `docs/wslg-gui-debugging.md` §10 for driving the window on Windows.
 
-# Coding Standards
+## Coding Standards
 
-Follow standard C# conventions ([source](https://learn.microsoft.com/en-us/dotnet/csharp/fundamentals/coding-style/coding-conventions)).
+Follow standard C# conventions (https://learn.microsoft.com/en-us/dotnet/csharp/fundamentals/coding-style/coding-conventions).
 
-## Formatting
+### Formatting
 
-- 4-space indentation (no tabs)
-- Allman brace style — opening and closing braces on their own lines
-- Always use curly braces for control flow (`if`, `for`, `foreach`, `while`, etc.) — never omit them for single-line bodies
-- One statement per line; one declaration per line
-- One blank line between members; no consecutive blank lines
-- Space after flow-control keywords (`if (`, `for (`); no space after method names (`Method(`)
+- 4-space indentation, no tabs.
+- Allman brace style — opening and closing braces on their own lines.
+- Always use curly braces for control flow — never omit them for single-line bodies.
+- One statement per line; one declaration per line.
+- One blank line between members; no consecutive blank lines.
+- Space after flow-control keywords (`if (`, `for (`); no space after method names (`Method(`).
 
-## Naming
+### Naming
 
-- PascalCase: classes, methods, properties, constants, namespaces, public fields, record primary constructor parameters
-- camelCase: local variables, parameters
-- `_camelCase`: private fields (underscore prefix)
-- `I` prefix for interfaces (e.g. `IEmulatorService`)
-- Two-character acronyms are uppercase (`IO`, `UI`); longer acronyms use PascalCase (`Http`, `Json`)
-- Use `nameof()` instead of string literals for member/property names
+- `PascalCase`: classes, methods, properties, constants, namespaces, public fields, record primary constructor parameters.
+- `camelCase`: parameters and local variables.
+- `_camelCase` (underscore prefix): private fields (e.g. `_processRunner`).
+- `I` prefix for interfaces (e.g. `IEmulatorService`).
+- Two-character acronyms are uppercase (`IO`, `UI`); longer acronyms use PascalCase (`Http`, `Json`).
 
-## File organization
+### File organization
 
-- One type per file; file named `{TypeName}.cs`
-- Partial classes use `{ClassName}.{Part}.cs`
-- File-scoped namespaces (`namespace Foo;`), aligned with folder structure
-- `using` directives outside namespace declarations, ordered `System` first, then third-party, then project namespaces
-- A per-project `Usings.cs` holds global usings (e.g. a test project's global `using NUnit.Framework;`)
+- One type per file; file named `{TypeName}.cs`.
+- Partial classes use `{ClassName}.{Part}.cs`.
+- File-scoped namespaces (`namespace Foo;`), aligned with folder structure.
+- `using` directives outside namespace declarations.
+- `using` order: `System` first, then third-party, then project namespaces.
+- Per-project `Usings.cs` holds global usings (e.g. test projects globally use `NUnit.Framework`).
 
-## Access modifiers
+### Access modifiers
 
-- Always explicit (no implicit `private` or `internal`)
-- `internal` for implementation details
-- `[PublicAPI]` (JetBrains.Annotations, referenced solution-wide) on intentionally public API surface
-- `[ExcludeFromCodeCoverage]` on composition-only types (the `AddRemoteAdbCore()` registration, the Avalonia `App` composition root, and similar)
+- Always explicit (no implicit `private` or `internal`).
+- `[PublicAPI]` (JetBrains.Annotations, referenced from `Directory.Build.props`) on intentionally public API surface.
+- `internal` for implementation details. In `Remote.Adb.Core` that means every implementation class (`AdbRunner`, `TunnelService`, the `*OutputParser`s, …) and every interface only Core uses (`IAdbRunner`, `IProcessRunner`, …); what stays public — with `[PublicAPI]` — is the contract the front-ends program against (service interfaces, models, enums, the `AddRemoteAdbCore()` / `AddRemoteAdbLogStore()` entry points). The front-ends and tests reach internals via `InternalsVisibleTo` (Core also grants `DynamicProxyGenAssembly2` for Moq).
+- `[ExcludeFromCodeCoverage]` on bootstrappers and similar composition-only types (the `ServiceCollectionExtensions`, the Avalonia `App` composition root).
 
-## Language style
+### XML documentation
 
-- Use `var` for all local variables where the type can be inferred
-- Use language keywords for built-in types (`string`, `int`, not `String`, `Int32`)
-- Prefer string interpolation (`$"..."`) over concatenation
-- Use `&&`/`||`, not `&`/`|`, for logical comparisons
-- Use `async`/`await` for async code; avoid `.Result` or `.Wait()`
-- Prefer expression-bodied members for single-line getters/methods
-- Nullable reference types are enabled solution-wide (`Nullable=enable` in `Directory.Build.props`); respect nullability annotations
+- Required on public types and members in projects that set `GenerateDocumentationFile=true` — `Remote.Adb.Core` does (missing docs are build errors in CI).
+- Use `<inheritdoc />` for interface implementations when the base doc is sufficient.
+- Elsewhere (Desktop, Console, tests), add docs only where they help.
 
-## Class member order
+### Language style
 
-Within a class, group members by kind in this order, and alphabetize strictly by name within each group regardless of access modifier:
+- Use `var` for all local variables where the type can be inferred.
+- Use language keywords for built-in types (`string`, `int`, not `String`, `Int32`).
+- Prefer string interpolation (`$"..."`) over concatenation.
+- Use `&&`/`||`, not `&`/`|`, for logical comparisons.
+- Use `async`/`await` for async code; avoid `.Result` or `.Wait()`. (Reading `.Result` of a task you've already awaited — e.g. after `await Task.WhenAll(...)` — is fine.)
+- Prefer expression-bodied members for single-line getters/methods.
+- Nullable reference types are enabled solution-wide (in `Directory.Build.props`); respect nullability annotations.
+- Use `nameof()` instead of string literals for member/property names.
+- Prefer collection expressions (`[]`, `[.. items]`) for initializers.
+- Classes use explicit constructors; primary constructors are for records.
+- Locks use the `System.Threading.Lock` type, not `object`.
+- Bounded external calls use the shared `Timeouts.TryWithTimeoutAsync` helper rather than a hand-rolled linked token / `CancelAfter` / `OperationCanceledException` filter; user-facing text for a failed process comes from `ProcessResult.Describe(tool)`.
+
+### Class member order
+
+Within a class, group members in this order and alphabetize strictly by name within each group regardless of access modifier (or `static`):
 
 1. Constants / `static readonly` fields
-2. Instance fields
+2. Instance fields (including `[ObservableProperty]` backing fields — alphabetized with the rest)
 3. Constructors
-4. Properties
-5. Methods
+4. Events
+5. Properties
+6. Methods (including `partial void On…Changed` hooks and `[RelayCommand]` methods)
 
-Access modifiers do not affect ordering — when you go looking for `GetFoo()` you don't care whether it's public, internal, or private, so `CreateFoo()` comes before `GetFoo()` regardless. Nested types go at the bottom of the file, after all members of the outer type.
+Access modifiers do not affect ordering — `CreateFoo()` comes before `GetFoo()` whether either is public, internal, or private. Nested types go at the bottom of the file, after all members of the outer type.
 
-## Shared code (DRY)
+### Shared code (DRY)
 
 Write a piece of logic once and share it; don't copy it into a second place.
 
 - **One runner per external tool.** Every invocation of a given tool goes through its single shared runner — `IAdbRunner` for adb — so cross-cutting behavior (environment, logging, recovery) lives in one place. Don't call `IProcessRunner` with a tool path a runner already owns.
-- **Extract before you copy.** When you're about to write something that already exists — a poll loop, a parse step, a view-model command pattern, a dialog plumbing step — extract a shared helper (or reuse the one that's there) instead. Reviews treat duplication as a defect.
-- **Place it by reach.** A helper used by one feature lives in that feature's folder; one used across features goes in `Common/` (see feature-first organization above).
+- **Extract before you copy.** When you're about to write something that already exists — a poll loop, a timeout, a parse step, a view-model command pattern, an error-text block in XAML, a test mock setup — extract a shared helper, base class, style or fake (or reuse the one that's there) instead. Reviews treat duplication as a defect.
+- **Place it by reach.** A helper used by one feature lives in that feature's folder; one used across features goes in `Common/` (see feature-first organization above). Shared test helpers go in `Remote.Adb.Testing`.
 
-## Frozen collections for static lookups
+### Frozen collections for static lookups
 
-Any `static readonly` `HashSet<T>` or `Dictionary<TKey, TValue>` that is never mutated after construction should be a `FrozenSet<T>` / `FrozenDictionary<TKey, TValue>` (`System.Collections.Frozen`), built via `.ToFrozenSet(comparer)` / `.ToFrozenDictionary()`. Lookups are faster and the frozen type signals "immutable lookup" at the type level.
+Any `static readonly` `HashSet<T>` or `Dictionary<TKey, TValue>` that is never mutated after construction should be a `FrozenSet<T>` / `FrozenDictionary<TKey, TValue>` (`System.Collections.Frozen`). Build them via `.ToFrozenSet(comparer)` / `.ToFrozenDictionary()`. Lookups are faster and the frozen variant signals "immutable lookup" at the type level.
 
-## Prefer spans for multi-step string manipulation
+### Prefer spans for multi-step string manipulation
 
 When a method performs **more than one** manipulation over the same string source — splitting, trimming, slicing, scanning, `StartsWith`/`IndexOf`/comparisons — operate over `ReadOnlySpan<char>` instead of allocating intermediate strings. Take `source.AsSpan()` once, iterate lines with `EnumerateLines()` (no `string[]`, and it handles `\r\n`), tokenize/slice with span operations (`Trim`, `IndexOf`, `SequenceEqual`, range slicing), and call `.ToString()` **only** on the values you actually keep. The `*OutputParser` types in `Remote.Adb.Core` are the canonical example. A single trivial operation on a string doesn't need this; the rule is about chains of manipulation on one source.
 
 This is the parse side only. The byte→string boundary itself (`StreamReader.ReadToEndAsync`) is a separate, larger optimization (read `BaseStream` into pooled buffers, decode to a `char[]`, parse the span) — don't undertake it ad hoc; it changes process-IO plumbing and the `string`-typed error/diagnostic surfaces (`ProcessResult.StandardError`, `IProcessSession.StandardError`).
-
-## XML documentation
-
-In library projects that enable `GenerateDocumentationFile`, document public/internal types and members; use `<inheritdoc />` for interface implementations where the interface doc suffices. Elsewhere, add docs only where they clarify intent.

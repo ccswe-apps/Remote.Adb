@@ -1,5 +1,6 @@
 using System.Collections.Frozen;
 using System.Text.RegularExpressions;
+using JetBrains.Annotations;
 
 namespace Remote.Adb.Core.Emulators;
 
@@ -9,6 +10,7 @@ namespace Remote.Adb.Core.Emulators;
 /// definition. The editor keeps the raw config string as the value; these are validation predicates, not
 /// converters.
 /// </summary>
+[PublicAPI]
 public static partial class AvdValueConventions
 {
     /// <summary>How <c>config.ini</c> encodes booleans (e.g. <c>hw.gps</c>, <c>hw.gpu.enabled</c>).</summary>

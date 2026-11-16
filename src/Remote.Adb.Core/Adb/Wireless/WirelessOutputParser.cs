@@ -7,7 +7,7 @@ namespace Remote.Adb.Core.Adb.Wireless;
 /// <c>mdns services</c>). The messages are adb's own (AOSP <c>client/transport_emulator.cpp</c>,
 /// <c>client/adb_wifi.cpp</c>, <c>client/transport_mdns.cpp</c>); parsing is over spans, allocating only what's kept.
 /// </summary>
-public static class WirelessOutputParser
+internal static class WirelessOutputParser
 {
     private const string MdnsHeader = "List of discovered mdns services";
     private const string PairedPrefix = "Successfully paired to ";

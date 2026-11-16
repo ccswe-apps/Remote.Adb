@@ -1,11 +1,10 @@
 using System.Diagnostics.CodeAnalysis;
 using Moq;
-using NUnit.Framework;
 using Remote.Adb.Core.Adb;
 using Remote.Adb.Core.Common;
 using Remote.Adb.Core.Settings;
 using Remote.Adb.Core.Tunnel;
-using Remote.Adb.Core.UnitTests.Fakes;
+using Remote.Adb.Testing;
 
 namespace Remote.Adb.Core.UnitTests.Tunnel;
 

@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using JetBrains.Annotations;
 
 namespace Remote.Adb.Core.Adb.Wireless;
 
@@ -9,6 +10,7 @@ namespace Remote.Adb.Core.Adb.Wireless;
 /// </summary>
 /// <param name="ServiceName">The mDNS instance name the device will advertise once it scans the code.</param>
 /// <param name="Password">The pairing password (the "code").</param>
+[PublicAPI]
 public sealed record QrPairingPayload(string ServiceName, string Password)
 {
     // Letters and digits only: the payload is ';'/':'-delimited, adb sends "host:pair:<password>:<address>", and a '.'

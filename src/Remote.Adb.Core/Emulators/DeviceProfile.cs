@@ -1,4 +1,5 @@
 using System.Globalization;
+using JetBrains.Annotations;
 
 namespace Remote.Adb.Core.Emulators;
 
@@ -22,6 +23,7 @@ namespace Remote.Adb.Core.Emulators;
 /// <param name="PlayStore">Whether the device supports Google Play Store images.</param>
 /// <param name="IsObsolete">Whether the device is a deprecated/obsolete profile (hidden by default).</param>
 /// <param name="DiagonalInches">The screen's diagonal length in inches, or <see langword="null"/>.</param>
+[PublicAPI]
 public sealed record DeviceProfile(
     string Id,
     string Name,

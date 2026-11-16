@@ -3,7 +3,7 @@ using System.Diagnostics;
 namespace Remote.Adb.Core.Common;
 
 /// <inheritdoc />
-public sealed class ProcessSession : IProcessSession
+internal sealed class ProcessSession : IProcessSession
 {
     private readonly Process _process;
     private readonly Task<string> _standardErrorTask;

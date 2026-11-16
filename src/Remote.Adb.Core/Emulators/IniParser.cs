@@ -5,7 +5,7 @@ namespace Remote.Adb.Core.Emulators;
 /// <c>\r\n</c>-safe; classifies each line as a <c>key=value</c> pair, a comment, or a blank. Kept free of
 /// I/O so it is trivially unit-testable.
 /// </summary>
-public static class IniParser
+internal static class IniParser
 {
     public static IniDocument Parse(string text)
     {

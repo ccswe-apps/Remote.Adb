@@ -1,6 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
 using Moq;
-using NUnit.Framework;
 using Remote.Adb.Core.Common;
 using Remote.Adb.Core.Diagnostics;
 

@@ -1,3 +1,5 @@
+using JetBrains.Annotations;
+
 namespace Remote.Adb.Core.Emulators;
 
 /// <summary>
@@ -7,6 +9,7 @@ namespace Remote.Adb.Core.Emulators;
 /// </summary>
 /// <param name="Success">Whether the operation completed successfully.</param>
 /// <param name="Error">The failure detail to surface, or <see langword="null"/> on success.</param>
+[PublicAPI]
 public sealed record AvdOperationResult(bool Success, string? Error)
 {
     /// <summary>A successful result, with no error.</summary>

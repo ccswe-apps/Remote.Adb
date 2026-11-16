@@ -1,3 +1,5 @@
+using JetBrains.Annotations;
+
 namespace Remote.Adb.Core.Logging;
 
 /// <summary>
@@ -5,6 +7,7 @@ namespace Remote.Adb.Core.Logging;
 /// at Debug instead of Information and don't drown out user-initiated activity. The flag flows across
 /// <c>await</c>s via <see cref="AsyncLocal{T}"/>.
 /// </summary>
+[PublicAPI]
 public static class CommandLogScope
 {
     private static readonly AsyncLocal<bool> BackgroundFlag = new();

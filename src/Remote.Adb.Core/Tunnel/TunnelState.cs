@@ -1,6 +1,9 @@
+using JetBrains.Annotations;
+
 namespace Remote.Adb.Core.Tunnel;
 
 /// <summary>The lifecycle state of the SSH reverse tunnel.</summary>
+[PublicAPI]
 public enum TunnelState
 {
     /// <summary>No tunnel is open.</summary>

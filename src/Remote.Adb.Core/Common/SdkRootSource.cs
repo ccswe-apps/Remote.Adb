@@ -1,9 +1,12 @@
+using JetBrains.Annotations;
+
 namespace Remote.Adb.Core.Common;
 
 /// <summary>
 /// Where <see cref="IAndroidSdk.SdkRoot"/> was resolved from, so the UI can explain (and warn about) the
 /// effective path.
 /// </summary>
+[PublicAPI]
 public enum SdkRootSource
 {
     /// <summary>No SDK root could be resolved.</summary>

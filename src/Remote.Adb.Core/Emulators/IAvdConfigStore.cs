@@ -1,9 +1,12 @@
+using JetBrains.Annotations;
+
 namespace Remote.Adb.Core.Emulators;
 
 /// <summary>
 /// Reads and writes a single AVD's full configuration. Complements <see cref="IAvdCatalog"/>, which only
 /// builds the lightweight list metadata for every AVD at once.
 /// </summary>
+[PublicAPI]
 public interface IAvdConfigStore
 {
     /// <summary>

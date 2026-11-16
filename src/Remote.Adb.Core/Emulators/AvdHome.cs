@@ -1,3 +1,5 @@
+using JetBrains.Annotations;
+
 namespace Remote.Adb.Core.Emulators;
 
 /// <summary>
@@ -5,6 +7,7 @@ namespace Remote.Adb.Core.Emulators;
 /// files live: the Settings override, else <c>ANDROID_AVD_HOME</c>, else <c>$ANDROID_SDK_HOME/.android/avd</c>,
 /// else <c>~/.android/avd</c>.
 /// </summary>
+[PublicAPI]
 public static class AvdHome
 {
     /// <summary>

@@ -5,7 +5,7 @@ using Remote.Adb.Core.Common;
 namespace Remote.Adb.Core.Adb;
 
 /// <inheritdoc />
-public sealed class AdbRunner : IAdbRunner
+internal sealed class AdbRunner : IAdbRunner
 {
     private const int DefaultServerPort = 5037;
 

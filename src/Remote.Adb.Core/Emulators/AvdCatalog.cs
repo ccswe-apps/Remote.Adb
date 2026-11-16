@@ -1,7 +1,7 @@
 namespace Remote.Adb.Core.Emulators;
 
 /// <inheritdoc />
-public sealed class AvdCatalog : IAvdCatalog
+internal sealed class AvdCatalog : IAvdCatalog
 {
     private readonly IAvdConfigStore _store;
 

@@ -6,7 +6,7 @@ using Remote.Adb.Core.Common;
 namespace Remote.Adb.Core.Adb;
 
 /// <inheritdoc />
-public sealed class AdbServerProcesses : IAdbServerProcesses
+internal sealed class AdbServerProcesses : IAdbServerProcesses
 {
     private readonly IAndroidSdk _androidSdk;
     private readonly ILogger<AdbServerProcesses> _logger;

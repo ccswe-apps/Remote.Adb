@@ -7,7 +7,7 @@ namespace Remote.Adb.Core.Emulators;
 /// <c>system-images/android-&lt;n&gt;/&lt;tag&gt;/&lt;abi&gt;/</c> — version-independent and far simpler than
 /// parsing <c>sdkmanager --list</c>. The root is passed in so it stays pure and testable.
 /// </summary>
-public static class SystemImageScanner
+internal static class SystemImageScanner
 {
     /// <summary>
     /// Returns the installed <see cref="SystemImagePackage"/>s under <paramref name="sdkRoot"/> (newest API

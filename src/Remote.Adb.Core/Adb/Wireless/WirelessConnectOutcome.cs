@@ -1,6 +1,9 @@
+using JetBrains.Annotations;
+
 namespace Remote.Adb.Core.Adb.Wireless;
 
 /// <summary>How an <c>adb connect</c> attempt ended, classified from its output (it exits 0 even on failure).</summary>
+[PublicAPI]
 public enum WirelessConnectOutcome
 {
     /// <summary><c>connected to …</c></summary>

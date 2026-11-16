@@ -4,7 +4,7 @@ using Remote.Adb.Core.Settings;
 namespace Remote.Adb.Core.Emulators;
 
 /// <inheritdoc />
-public sealed class AvdConfigStore : IAvdConfigStore
+internal sealed class AvdConfigStore : IAvdConfigStore
 {
     private readonly ILogger<AvdConfigStore> _logger;
     private readonly ISettingsService _settings;

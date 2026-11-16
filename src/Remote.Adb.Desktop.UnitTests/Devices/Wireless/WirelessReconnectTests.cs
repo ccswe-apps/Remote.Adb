@@ -11,10 +11,10 @@ namespace Remote.Adb.Desktop.UnitTests.Devices.Wireless;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public class WirelessReconnectTests
 {
-    protected Mock<IAdbServerService> AdbServer = null!;
-    protected int Reconnects;
-    protected Mock<ITunnelService> Tunnel = null!;
-    protected Mock<IWirelessAdbService> Wireless = null!;
+    private protected Mock<IAdbServerService> AdbServer = null!;
+    private protected int Reconnects;
+    private protected Mock<ITunnelService> Tunnel = null!;
+    private protected Mock<IWirelessAdbService> Wireless = null!;
 
     [SetUp]
     public void SetUp()
@@ -29,7 +29,7 @@ public class WirelessReconnectTests
             .ReturnsAsync(0);
     }
 
-    protected async Task<WirelessReconnect> StartAsync()
+    private protected async Task<WirelessReconnect> StartAsync()
     {
         var service = new WirelessReconnect(Wireless.Object, AdbServer.Object, Tunnel.Object, NullLogger<WirelessReconnect>.Instance);
         await service.StartAsync(CancellationToken.None);
@@ -38,7 +38,7 @@ public class WirelessReconnectTests
     }
 
     // The service reconnects on its own background loop; wait (bounded) for it to catch up.
-    protected async Task WaitForAsync(int count)
+    private protected async Task WaitForAsync(int count)
     {
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
         while (Volatile.Read(ref Reconnects) < count && DateTime.UtcNow < deadline)

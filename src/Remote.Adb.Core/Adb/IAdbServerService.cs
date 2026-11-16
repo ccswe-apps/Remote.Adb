@@ -1,8 +1,11 @@
+using JetBrains.Annotations;
+
 namespace Remote.Adb.Core.Adb;
 
 /// <summary>
 /// Manages the lifecycle of the local <c>adb</c> server — the server the SSH reverse tunnel forwards to.
 /// </summary>
+[PublicAPI]
 public interface IAdbServerService
 {
     /// <summary>Raised after <see cref="RestartAsync"/> successfully brings the server back up, so dependents (e.g. an

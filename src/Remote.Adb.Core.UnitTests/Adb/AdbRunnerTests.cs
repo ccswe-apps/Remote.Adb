@@ -1,22 +1,21 @@
 using System.Diagnostics.CodeAnalysis;
 using Moq;
-using NUnit.Framework;
 using Remote.Adb.Core.Adb;
 using Remote.Adb.Core.Common;
-using Remote.Adb.Core.UnitTests.Fakes;
+using Remote.Adb.Testing;
 
 namespace Remote.Adb.Core.UnitTests.Adb;
 
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public class AdbRunnerTests
 {
-    protected const string AdbPath = "/sdk/platform-tools/adb";
-    protected const string MismatchError = "adb server version (40) doesn't match this client (41); killing...\nerror: cannot connect to daemon\n";
+    private protected const string AdbPath = "/sdk/platform-tools/adb";
+    private protected const string MismatchError = "adb server version (40) doesn't match this client (41); killing...\nerror: cannot connect to daemon\n";
 
-    protected Mock<IProcessRunner> ProcessRunner = null!;
-    protected Mock<IAdbServerProcesses> ServerProcesses = null!;
+    private protected Mock<IProcessRunner> ProcessRunner = null!;
+    private protected Mock<IAdbServerProcesses> ServerProcesses = null!;
 
-    protected AdbRunner CreateRunner()
+    private protected AdbRunner CreateRunner()
     {
         var sdk = new Mock<IAndroidSdk>();
         sdk.SetupGet(s => s.AdbPath).Returns(AdbPath);
@@ -24,7 +23,7 @@ public class AdbRunnerTests
         return new AdbRunner(ProcessRunner.Object, sdk.Object, ServerProcesses.Object, new LoggerFake<AdbRunner>());
     }
 
-    protected void ProcessReturns(params ProcessResult[] results)
+    private protected void ProcessReturns(params ProcessResult[] results)
     {
         var sequence = ProcessRunner.SetupSequence(runner => runner.RunAsync(
             It.IsAny<string>(),
@@ -47,7 +46,7 @@ public class AdbRunnerTests
         ServerProcesses.Setup(processes => processes.KillAsync(It.IsAny<CancellationToken>())).ReturnsAsync(true);
     }
 
-    protected void VerifyRuns(Times times) =>
+    private protected void VerifyRuns(Times times) =>
         ProcessRunner.Verify(
             runner => runner.RunAsync(
                 It.IsAny<string>(),

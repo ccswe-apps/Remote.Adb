@@ -4,7 +4,7 @@ namespace Remote.Adb.Core.Adb;
 /// Stops the local adb server by killing its process. The app can't use <c>adb kill-server</c>: the servers it starts
 /// reject kills (see <see cref="IAdbRunner.EnvironmentOverrides"/>).
 /// </summary>
-public interface IAdbServerProcesses
+internal interface IAdbServerProcesses
 {
     /// <summary>
     /// Kills the adb server process(es) belonging to the configured adb and waits for them to exit. Returns

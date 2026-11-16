@@ -6,7 +6,7 @@ using Remote.Adb.Core.Settings;
 namespace Remote.Adb.Core.Adb.Wireless;
 
 /// <inheritdoc />
-public sealed class WirelessAdbService : IWirelessAdbService
+internal sealed class WirelessAdbService : IWirelessAdbService
 {
     private const string DefaultPortSuffix = ":5555";
 

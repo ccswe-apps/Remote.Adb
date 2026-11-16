@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using JetBrains.Annotations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -10,8 +11,13 @@ namespace Remote.Adb.Core.Logging;
 /// <c>AddRemoteAdbCore()</c> because choosing logging providers is the host's decision.
 /// </summary>
 [ExcludeFromCodeCoverage]
+[PublicAPI]
 public static class LoggingBuilderExtensions
 {
+    /// <summary>Adds the in-memory log store provider, capturing <c>Remote.Adb</c> logging from <paramref name="minimumLevel"/> up.</summary>
+    /// <param name="builder">The logging builder to add to.</param>
+    /// <param name="minimumLevel">The lowest level captured for the app's own categories.</param>
+    /// <returns><paramref name="builder"/>, for chaining.</returns>
     public static ILoggingBuilder AddRemoteAdbLogStore(this ILoggingBuilder builder, LogLevel minimumLevel = LogLevel.Information)
     {
         builder.Services.TryAddSingleton<LogStore>();

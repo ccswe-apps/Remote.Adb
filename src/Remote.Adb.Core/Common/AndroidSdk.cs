@@ -4,7 +4,7 @@ using Remote.Adb.Core.Settings;
 namespace Remote.Adb.Core.Common;
 
 /// <inheritdoc />
-public sealed class AndroidSdk : IAndroidSdk
+internal sealed class AndroidSdk : IAndroidSdk
 {
     private readonly ISettingsService _settings;
 

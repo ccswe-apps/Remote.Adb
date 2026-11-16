@@ -4,7 +4,7 @@ namespace Remote.Adb.Core.Adb;
 /// Pure parsing of <c>adb</c> command output. Kept free of I/O so it is trivially unit-testable. Parses over
 /// spans, allocating only the field strings it keeps.
 /// </summary>
-public static class AdbOutputParser
+internal static class AdbOutputParser
 {
     /// <summary>
     /// Parses the output of <c>adb devices</c>, returning the serials of devices in the

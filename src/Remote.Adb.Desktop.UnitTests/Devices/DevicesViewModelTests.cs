@@ -15,12 +15,12 @@ namespace Remote.Adb.Desktop.UnitTests.Devices;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public class DevicesViewModelTests
 {
-    protected Mock<IDeviceService> DeviceService = null!;
-    protected Mock<IEmulatorService> EmulatorService = null!;
-    protected Mock<INotificationService> Notifications = null!;
-    protected FakeTimerFactory TimerFactory = null!;
-    protected Mock<IWirelessAdbService> Wireless = null!;
-    protected Mock<IWirelessDeviceDialog> WirelessDialog = null!;
+    private protected Mock<IDeviceService> DeviceService = null!;
+    private protected Mock<IEmulatorService> EmulatorService = null!;
+    private protected Mock<INotificationService> Notifications = null!;
+    private protected FakeTimerFactory TimerFactory = null!;
+    private protected Mock<IWirelessAdbService> Wireless = null!;
+    private protected Mock<IWirelessDeviceDialog> WirelessDialog = null!;
 
     [SetUp]
     public void SetUp()
@@ -41,13 +41,13 @@ public class DevicesViewModelTests
         WirelessDialog = new Mock<IWirelessDeviceDialog>();
     }
 
-    protected static AdbDevice Physical(string serial, string? model = null, string state = "device") =>
+    private protected static AdbDevice Physical(string serial, string? model = null, string state = "device") =>
         new(serial, state, model, null, null, null);
 
-    protected static AndroidVirtualDevice Virtual(string name, bool running = false) =>
+    private protected static AndroidVirtualDevice Virtual(string name, bool running = false) =>
         new(name, name, null, running, running ? "emulator-5554" : null);
 
-    protected DevicesViewModel CreateViewModel() => new(
+    private protected DevicesViewModel CreateViewModel() => new(
         EmulatorService.Object,
         DeviceService.Object,
         Mock.Of<IAvdConfigStore>(),

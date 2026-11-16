@@ -4,7 +4,7 @@ namespace Remote.Adb.Core.Emulators;
 /// Pure parsing of <c>emulator</c> / emulator-console command output. Kept free of I/O so it is
 /// trivially unit-testable. Parses over spans, allocating only the strings it returns.
 /// </summary>
-public static class EmulatorOutputParser
+internal static class EmulatorOutputParser
 {
     /// <summary>
     /// Parses the output of <c>emulator -list-avds</c> into AVD names (one per line).

@@ -9,9 +9,9 @@ namespace Remote.Adb.Desktop.UnitTests.Devices.Wireless;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public class AddWirelessDeviceViewModelTests
 {
-    protected bool? Closed;
-    protected FakeTimerFactory TimerFactory = null!;
-    protected Mock<IWirelessAdbService> Wireless = null!;
+    private protected bool? Closed;
+    private protected FakeTimerFactory TimerFactory = null!;
+    private protected Mock<IWirelessAdbService> Wireless = null!;
 
     [SetUp]
     public void SetUp()
@@ -23,7 +23,7 @@ public class AddWirelessDeviceViewModelTests
         Wireless.Setup(wireless => wireless.DiscoverAsync(It.IsAny<CancellationToken>())).ReturnsAsync(Array.Empty<MdnsService>());
     }
 
-    protected AddWirelessDeviceViewModel CreateViewModel()
+    private protected AddWirelessDeviceViewModel CreateViewModel()
     {
         var viewModel = new AddWirelessDeviceViewModel(Wireless.Object, TimerFactory);
         viewModel.CloseRequested += result => Closed = result;

@@ -1,12 +1,12 @@
 using Remote.Adb.Core.Common;
 
-namespace Remote.Adb.Core.UnitTests.Fakes;
+namespace Remote.Adb.Testing;
 
 /// <summary>
 /// A controllable <see cref="IProcessSession"/>. Construct it already-exited (a lost bind race) or leave it
 /// running and later <see cref="Exit"/> it (a tunnel that drops); <see cref="KillCount"/> records teardown.
 /// </summary>
-public sealed class FakeProcessSession : IProcessSession
+internal sealed class FakeProcessSession : IProcessSession
 {
     private readonly TaskCompletionSource<int> _exit = new(TaskCreationOptions.RunContinuationsAsynchronously);
 

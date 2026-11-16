@@ -1,9 +1,12 @@
+using JetBrains.Annotations;
+
 namespace Remote.Adb.Core.Adb.Wireless;
 
 /// <summary>
 /// Connects Android devices over the network through the <b>local</b> adb server — the one the SSH tunnel exposes to
 /// the remote host, so a device connected here is visible there too.
 /// </summary>
+[PublicAPI]
 public interface IWirelessAdbService
 {
     /// <summary>

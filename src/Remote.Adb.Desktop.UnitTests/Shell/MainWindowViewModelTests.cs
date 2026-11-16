@@ -25,12 +25,12 @@ namespace Remote.Adb.Desktop.UnitTests.Shell;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public class MainWindowViewModelTests
 {
-    protected Mock<IDeviceService> DeviceService = null!;
-    protected Mock<ISdkDiagnostics> Diagnostics = null!;
-    protected Mock<IEmulatorService> EmulatorService = null!;
-    protected Mock<INotificationService> Notifications = null!;
-    protected Mock<ISettingsService> Settings = null!;
-    protected StatusBarViewModel StatusBar = null!;
+    private protected Mock<IDeviceService> DeviceService = null!;
+    private protected Mock<ISdkDiagnostics> Diagnostics = null!;
+    private protected Mock<IEmulatorService> EmulatorService = null!;
+    private protected Mock<INotificationService> Notifications = null!;
+    private protected Mock<ISettingsService> Settings = null!;
+    private protected StatusBarViewModel StatusBar = null!;
 
     [SetUp]
     public void SetUp()
@@ -61,7 +61,7 @@ public class MainWindowViewModelTests
         StatusBar?.Dispose();
     }
 
-    protected MainWindowViewModel CreateViewModel()
+    private protected MainWindowViewModel CreateViewModel()
     {
         var devices = new DevicesViewModel(
             EmulatorService.Object,
@@ -106,7 +106,7 @@ public class MainWindowViewModelTests
             Notifications.Object);
     }
 
-    protected void VerifyListCount(Times times) =>
+    private protected void VerifyListCount(Times times) =>
         DeviceService.Verify(service => service.ListAsync(It.IsAny<CancellationToken>()), times);
 
     public class When_The_Log_Panel_Is_Toggled : MainWindowViewModelTests

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 using Remote.Adb.Core;
 using Remote.Adb.Core.Emulators;
@@ -18,6 +19,7 @@ namespace Remote.Adb.Desktop;
 /// Registers the Desktop head's services: the shared Core services, theming/density appliers, dialogs, the page
 /// view models and their DI-resolved views, and the device-catalog warm-up background service.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddRemoteAdbDesktop(this IServiceCollection services)

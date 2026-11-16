@@ -3,7 +3,7 @@ using Remote.Adb.Core.Common;
 namespace Remote.Adb.Core.Diagnostics;
 
 /// <inheritdoc />
-public sealed class SdkDiagnostics : ISdkDiagnostics
+internal sealed class SdkDiagnostics : ISdkDiagnostics
 {
     private readonly IAndroidSdk _androidSdk;
 

@@ -1,3 +1,5 @@
+using JetBrains.Annotations;
+
 namespace Remote.Adb.Core.Adb.Wireless;
 
 /// <summary>
@@ -9,4 +11,5 @@ namespace Remote.Adb.Core.Adb.Wireless;
 /// <param name="Connected">Whether the device is connected after pairing.</param>
 /// <param name="Message">A message for display: adb's error, or what happened.</param>
 /// <param name="Guid">The device's adb guid (also its mDNS service instance name), when paired.</param>
+[PublicAPI]
 public sealed record WirelessPairResult(bool Paired, bool Connected, string Message, string? Guid = null);

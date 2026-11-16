@@ -4,7 +4,7 @@ namespace Remote.Adb.Core.Settings;
 /// Reads and writes the persisted <see cref="SettingsModel"/> on disk. The read path is tolerant (a missing
 /// or corrupt file yields defaults, never throws); the write path is atomic.
 /// </summary>
-public interface ISettingsStore
+internal interface ISettingsStore
 {
     /// <summary>Loads persisted settings; never throws — a missing or corrupt file yields defaults.</summary>
     SettingsModel Load();

@@ -5,7 +5,7 @@ using Remote.Adb.Core.Common;
 namespace Remote.Adb.Core.Emulators;
 
 /// <inheritdoc />
-public sealed class EmulatorService : IEmulatorService
+internal sealed class EmulatorService : IEmulatorService
 {
     private const string EmulatorSerialPrefix = "emulator-";
 

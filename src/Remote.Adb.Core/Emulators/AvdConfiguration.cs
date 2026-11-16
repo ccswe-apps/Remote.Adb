@@ -1,3 +1,4 @@
+using JetBrains.Annotations;
 using Remote.Adb.Core.Common;
 
 namespace Remote.Adb.Core.Emulators;
@@ -9,8 +10,13 @@ namespace Remote.Adb.Core.Emulators;
 /// the raw <c>config.ini</c> values (typed conversion of
 /// the editable fields lands with the edit feature); <see cref="ApiLevel"/> is the one derived value.
 /// </summary>
+[PublicAPI]
 public sealed class AvdConfiguration
 {
+    /// <summary>Creates the configuration of AVD <paramref name="avdId"/> from its parsed ini files.</summary>
+    /// <param name="avdId">The AVD's name (its <c>&lt;name&gt;.avd</c> folder).</param>
+    /// <param name="config">The AVD's <c>config.ini</c>.</param>
+    /// <param name="sibling">The <c>&lt;name&gt;.ini</c> next to the folder, when present.</param>
     public AvdConfiguration(string avdId, IniDocument config, IniDocument? sibling)
     {
         AvdId = avdId;
@@ -152,5 +158,5 @@ public sealed class AvdConfiguration
     }
 
     /// <summary>Projects the lightweight list metadata (<see cref="AvdMetadata"/>) from this configuration.</summary>
-    public AvdMetadata ToMetadata() => new(AvdId, DisplayName, Tag, ApiLevel, Abi);
+    internal AvdMetadata ToMetadata() => new(AvdId, DisplayName, Tag, ApiLevel, Abi);
 }

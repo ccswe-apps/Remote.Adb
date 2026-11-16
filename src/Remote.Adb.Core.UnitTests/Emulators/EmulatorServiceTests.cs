@@ -1,9 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
 using Moq;
-using NUnit.Framework;
 using Remote.Adb.Core.Common;
 using Remote.Adb.Core.Emulators;
-using Remote.Adb.Core.UnitTests.Fakes;
+using Remote.Adb.Testing;
 
 namespace Remote.Adb.Core.UnitTests.Emulators;
 

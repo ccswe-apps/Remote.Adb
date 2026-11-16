@@ -6,7 +6,7 @@ using Remote.Adb.Core.Settings;
 namespace Remote.Adb.Core.Tunnel;
 
 /// <inheritdoc cref="ITunnelService" />
-public sealed class TunnelService : ITunnelService, IAsyncDisposable
+internal sealed class TunnelService : ITunnelService, IAsyncDisposable
 {
     // IntelliJ's Android plugin respawns adb on Gradle sync and can win the bind race, so retry a few times.
     private const int MaxRetries = 3;

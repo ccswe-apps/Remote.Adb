@@ -1,3 +1,5 @@
+using JetBrains.Annotations;
+
 namespace Remote.Adb.Core.Emulators;
 
 /// <summary>
@@ -5,6 +7,7 @@ namespace Remote.Adb.Core.Emulators;
 /// profiles a new AVD can be built from. The tuned <c>config.ini</c> overrides are applied separately through
 /// <see cref="IAvdConfigStore"/> after creation.
 /// </summary>
+[PublicAPI]
 public interface IAvdProvisioningService
 {
     /// <summary>

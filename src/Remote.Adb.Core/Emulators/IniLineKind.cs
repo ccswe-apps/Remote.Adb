@@ -1,6 +1,9 @@
+using JetBrains.Annotations;
+
 namespace Remote.Adb.Core.Emulators;
 
 /// <summary>The classification of a single line in an <see cref="IniDocument"/>.</summary>
+[PublicAPI]
 public enum IniLineKind
 {
     /// <summary>A <c>key=value</c> pair.</summary>
