@@ -24,13 +24,6 @@ live as long as the app, and disposal-on-close would fire at shutdown. Don't bui
   and resolve `ConfirmDialogWindow` / `CreateAvdWizardWindow` from DI (a child scope), consistent with the page
   views and future-proof if a dialog needs a dependency.
 
-## Already done (in-app, no library)
-
-- `CreateAvdViewModel` and `AvdDetailsViewModel` are created via registered factories (`Func<CreateAvdViewModel>`,
-  `AvdDetailsViewModelFactory`) instead of hand-`new`ed with forwarded services.
-- `MainWindowViewModel` no longer fires the startup diagnostics as a constructor side effect — the shell calls
-  `RaiseStartupDiagnostics()` from `MainWindow.OnLoaded` once its notification sink is attached.
-
 ## Notes
 
 - Microsoft.Extensions.DependencyInjection has no built-in `Func<T>` — register factory delegates explicitly
