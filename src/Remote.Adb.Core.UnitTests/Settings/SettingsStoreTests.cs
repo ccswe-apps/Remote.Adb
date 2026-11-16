@@ -31,6 +31,39 @@ public class SettingsStoreTests
     private SettingsStore CreateStore(string? filePath = null) =>
         new(new LoggerFake<SettingsStore>(), filePath ?? _filePath);
 
+    public class When_ResolveFilePath_Is_Called : SettingsStoreTests
+    {
+        [Test]
+        public void It_uses_the_override_when_set()
+        {
+            var path = SettingsStore.ResolveFilePath(name => name == SettingsStore.FilePathVariable ? _filePath : null);
+
+            Assert.That(path, Is.EqualTo(_filePath));
+        }
+
+        [TestCase(null)]
+        [TestCase("")]
+        [TestCase("   ")]
+        public void It_falls_back_to_the_default_when_unset_or_blank(string? value)
+        {
+            var path = SettingsStore.ResolveFilePath(_ => value);
+
+            Assert.That(path, Is.EqualTo(SettingsStore.DefaultFilePath()));
+        }
+
+        [Test]
+        public void It_makes_a_relative_override_absolute()
+        {
+            var path = SettingsStore.ResolveFilePath(_ => Path.Combine("scratch", "settings.json"));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(Path.IsPathRooted(path), Is.True);
+                Assert.That(path, Is.EqualTo(Path.GetFullPath(Path.Combine("scratch", "settings.json"))));
+            });
+        }
+    }
+
     public class When_Load_Is_Called : SettingsStoreTests
     {
         [Test]
