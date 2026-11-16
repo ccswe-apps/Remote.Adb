@@ -4,7 +4,7 @@
         x:Class="Remote.Adb.Desktop.Devices.Wireless.AddWirelessDeviceWindow"
         x:DataType="wl:AddWirelessDeviceViewModel"
         Title="Add wireless device"
-        Width="480" SizeToContent="Height"
+        Width="640" SizeToContent="Height"
         CanResize="False"
         WindowStartupLocation="CenterOwner"
         FontFamily="{DynamicResource BodyFontFamily}"
@@ -23,7 +23,14 @@
         <TabControl SelectedIndex="{Binding SelectedTab}">
             <TabItem Header="Pair">
                 <StackPanel Spacing="20" Margin="0,16,0,0">
-                    <wl:PairingCodeView DataContext="{Binding Pair}"/>
+                    <!-- Scan the QR code, or type the pairing code — whichever the device shows. The code form is
+                         disabled while a scanned code is pairing, so the two can't race. -->
+                    <Grid ColumnDefinitions="Auto,24,*">
+                        <wl:QrPairingView Grid.Column="0" DataContext="{Binding Qr}"/>
+                        <Panel Grid.Column="2" IsEnabled="{Binding !Qr.IsPairing}">
+                            <wl:PairingCodeView DataContext="{Binding Pair}"/>
+                        </Panel>
+                    </Grid>
                     <wl:DiscoveredServicesView Title="Waiting to pair on this network"
                                                Services="{Binding Discovery.PairingServices}"
                                                IsUnavailable="{Binding Discovery.IsUnavailable}"

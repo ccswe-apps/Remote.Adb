@@ -7,7 +7,7 @@ using Remote.Adb.Desktop.Common.Threading;
 namespace Remote.Adb.Desktop.Devices.Wireless;
 
 /// <summary>
-/// The "Add wireless device" dialog: a Pair tab (Android 11+ pairing code) and a Connect tab (an address), each with the
+/// The "Add wireless device" dialog: a Pair tab (Android 11+ QR code or pairing code) and a Connect tab (an address), each with the
 /// matching devices discovered on the network. Closes with <see langword="true"/> once a device is connected. A device
 /// that pairs but doesn't connect on its own sends the user to the Connect tab with its IP filled in, since the connect
 /// port differs from the pairing port. Discovery polls only while the dialog is open (<see cref="OnOpened"/> /
@@ -17,6 +17,8 @@ public sealed partial class AddWirelessDeviceViewModel : ViewModelBase, IDialogV
 {
     public const int ConnectTab = 1;
     public const int PairTab = 0;
+
+    private bool _isClosing;
 
     [ObservableProperty]
     private string? _pairedNotice;
@@ -29,9 +31,11 @@ public sealed partial class AddWirelessDeviceViewModel : ViewModelBase, IDialogV
         Pair = new PairingCodeViewModel(wireless);
         Connect = new ConnectAddressViewModel(wireless);
         Discovery = new WirelessDiscoveryViewModel(wireless, timerFactory);
+        Qr = new QrPairingViewModel(wireless, Discovery, Pair, timerFactory);
 
         Pair.Paired += OnPaired;
-        Connect.Connected += () => CloseRequested?.Invoke(true);
+        Qr.Paired += OnPaired;
+        Connect.Connected += () => Close(true);
     }
 
     /// <inheritdoc />
@@ -43,8 +47,22 @@ public sealed partial class AddWirelessDeviceViewModel : ViewModelBase, IDialogV
 
     public PairingCodeViewModel Pair { get; }
 
+    public QrPairingViewModel Qr { get; }
+
     [RelayCommand]
-    private void Cancel() => CloseRequested?.Invoke(false);
+    private void Cancel() => Close(false);
+
+    // QR and code pairing can both finish; ask the host to close at most once.
+    private void Close(bool result)
+    {
+        if (_isClosing)
+        {
+            return;
+        }
+
+        _isClosing = true;
+        CloseRequested?.Invoke(result);
+    }
 
     // A discovered connect (or legacy tcpip) service: connect to it straight away, through the Connect tab's own flow so
     // the busy state and error text are shared.
@@ -59,16 +77,24 @@ public sealed partial class AddWirelessDeviceViewModel : ViewModelBase, IDialogV
     }
 
     /// <inheritdoc />
-    public void OnClosed() => Discovery.Stop();
+    public void OnClosed()
+    {
+        Qr.Stop();
+        Discovery.Stop();
+    }
 
     /// <inheritdoc />
-    public void OnOpened() => _ = Discovery.StartAsync();
+    public void OnOpened()
+    {
+        Qr.Start();
+        _ = Discovery.StartAsync();
+    }
 
     private void OnPaired(WirelessPairResult result)
     {
         if (result.Connected)
         {
-            CloseRequested?.Invoke(true);
+            Close(true);
             return;
         }
 

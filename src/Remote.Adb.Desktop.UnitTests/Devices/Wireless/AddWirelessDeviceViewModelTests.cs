@@ -194,6 +194,31 @@ public class AddWirelessDeviceViewModelTests
         }
     }
 
+    public class When_Both_Pairing_Paths_Finish : AddWirelessDeviceViewModelTests
+    {
+        [Test]
+        public async Task It_asks_to_close_only_once()
+        {
+            var closes = 0;
+            Wireless
+                .Setup(wireless => wireless.PairAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new WirelessPairResult(true, true, "Paired and connected.", "adb-x"));
+            Wireless
+                .Setup(wireless => wireless.ConnectAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new WirelessConnectResult(WirelessConnectOutcome.Connected, "connected"));
+            var viewModel = CreateViewModel();
+            viewModel.CloseRequested += _ => closes++;
+            viewModel.Pair.PairingAddress = "192.168.1.20:37123";
+            viewModel.Pair.Code = "123456";
+            viewModel.Connect.Address = "192.168.1.20:41235";
+
+            await viewModel.Pair.PairCommand.ExecuteAsync(null);
+            await viewModel.Connect.ConnectCommand.ExecuteAsync(null);
+
+            Assert.That(closes, Is.EqualTo(1));
+        }
+    }
+
     public class When_CancelCommand_Is_Executed : AddWirelessDeviceViewModelTests
     {
         [Test]
