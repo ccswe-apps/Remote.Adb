@@ -7,11 +7,14 @@ namespace Remote.Adb.Core.Common;
 /// </summary>
 internal interface IProcessSession : IAsyncDisposable
 {
-    /// <summary>Whether the process has exited.</summary>
-    bool HasExited { get; }
-
-    /// <summary>The exit code once the process has exited, or <see langword="null"/> while it is still running.</summary>
+    /// <summary>
+    /// The exit code once the process has exited, or <see langword="null"/> while it is still running. Safe to read
+    /// after disposal: it keeps the code captured before the process was released (<see langword="null"/> if none was).
+    /// </summary>
     int? ExitCode { get; }
+
+    /// <summary>Whether the process has exited. Always <see langword="true"/> once the session is disposed.</summary>
+    bool HasExited { get; }
 
     /// <summary>
     /// The captured standard error. Fully populated once <see cref="WaitForExitAsync"/> has returned (so a
@@ -23,8 +26,9 @@ internal interface IProcessSession : IAsyncDisposable
     void Kill();
 
     /// <summary>
-    /// Waits for the process to exit and returns its exit code. <see cref="StandardError"/> is guaranteed to be
-    /// fully captured by the time the returned task completes.
+    /// Waits for the process to exit and returns its exit code (<c>-1</c> if the session was disposed before the
+    /// code could be read). <see cref="StandardError"/> is guaranteed to be fully captured by the time the returned
+    /// task completes.
     /// </summary>
     Task<int> WaitForExitAsync(CancellationToken cancellationToken = default);
 }
