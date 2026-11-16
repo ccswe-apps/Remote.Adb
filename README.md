@@ -8,6 +8,8 @@ A cross-platform desktop app (with a matching console) that bridges Android deve
 local workstation and a remote dev machine: it opens the SSH reverse tunnel that lets a remote `adb`
 reach your locally-attached devices and emulators, and manages those emulators along the way.
 
+![The Devices page: USB, wireless and virtual devices in one list, with the status bar along the bottom](docs/images/devices.png)
+
 ## Why this exists
 
 I moved my day-to-day development to a remote Linux machine, but my Android phones (plugged in over
@@ -40,9 +42,13 @@ while it's there.
 ## Requirements
 
 Run Remote.Adb on the machine that has your Android devices and emulators and the `adb` server —
-typically your **local workstation** (Windows in my setup, though the app is cross-platform):
+typically your **local workstation**. **Windows and Linux** are tested; the macOS builds are published but
+untested (best-effort).
 
-- The **[.NET runtime](https://dotnet.microsoft.com/download)** for the target framework in [`src/Directory.Build.props`](src/Directory.Build.props) to run it (the **SDK** if you're building from source).
+- Nothing to install for .NET itself: the release builds are self-contained. (Building from source needs the
+  [.NET SDK](https://dotnet.microsoft.com/download) for the target framework in
+  [`src/Directory.Build.props`](src/Directory.Build.props).) On Linux, the ICU library (`libicu`) must be present —
+  it is on standard desktop distributions.
 - The **Android SDK** — `adb` and `emulator` are found via `ANDROID_HOME`/`ANDROID_SDK_ROOT`, the
   platform default (e.g. `%LOCALAPPDATA%\Android\Sdk`), or an override you set in the app. Emulator
   creation also uses `avdmanager` from the `cmdline-tools`, which needs a JDK (`JAVA_HOME` or the app's JDK setting).
@@ -56,15 +62,23 @@ typically your **local workstation** (Windows in my setup, though the app is cro
 
 ## Install & run
 
-Download the latest build for your platform — each archive contains both the desktop app and the console. The
-builds are framework-dependent, so you'll need the [.NET runtime](https://dotnet.microsoft.com/download) installed:
+Download the latest build for your platform and extract it anywhere — each archive contains both the desktop app
+(`Remote.Adb.Desktop`) and the console (`Remote.Adb.Console`), with the .NET runtime bundled:
 
 - **Windows (x64):** [`Remote.Adb-win-x64.zip`](https://github.com/ccswe-apps/Remote.Adb/releases/latest/download/Remote.Adb-win-x64.zip)
 - **Linux (x64):** [`Remote.Adb-linux-x64.tar.gz`](https://github.com/ccswe-apps/Remote.Adb/releases/latest/download/Remote.Adb-linux-x64.tar.gz)
 - **macOS (Apple Silicon):** [`Remote.Adb-osx-arm64.tar.gz`](https://github.com/ccswe-apps/Remote.Adb/releases/latest/download/Remote.Adb-osx-arm64.tar.gz)
 - **macOS (Intel):** [`Remote.Adb-osx-x64.tar.gz`](https://github.com/ccswe-apps/Remote.Adb/releases/latest/download/Remote.Adb-osx-x64.tar.gz)
 
-(Or browse the [Releases page](https://github.com/ccswe-apps/Remote.Adb/releases).) Or build from source:
+(Or browse the [Releases page](https://github.com/ccswe-apps/Remote.Adb/releases); `SHA256SUMS.txt` there lists
+each archive's checksum.) The builds aren't code-signed:
+
+- **Windows:** SmartScreen may warn about an unrecognized app the first time — choose **More info › Run anyway**.
+- **macOS:** clear the download quarantine first: `xattr -dr com.apple.quarantine <extracted folder>`.
+
+Each archive includes `LICENSE.md`, `THIRD-PARTY-NOTICES.txt`, and the bundled components' license texts.
+
+Or build from source:
 
 ```bash
 # Build (Release)
@@ -95,6 +109,9 @@ dotnet run --project src/Remote.Adb.Console -- tunnel
     Each tab also lists the matching devices found on your network (over mDNS) — pick one instead of typing its
     address. Discovery needs this computer on the phone's network with UDP port 5353 allowed for `adb` through the
     firewall; the dialog says so when it isn't available.
+
+    ![Adding a wireless device: scan the QR code or enter the pairing code; devices waiting to pair on the network are listed below](docs/images/add-wireless-device.png)
+
   - A wireless device's **⋮** menu has **Disconnect**, which also stops it being reconnected.
   - A USB device's **⋮** menu has **Enable Wi-Fi debugging**: it reads the phone's Wi-Fi address, switches it to
     `adb tcpip 5555`, and connects to it over Wi-Fi (remembered for reconnects) — then you can unplug it. The phone
@@ -105,6 +122,8 @@ dotnet run --project src/Remote.Adb.Console -- tunnel
   the app's own log, with a level filter, pause, follow, copy, and clear. Drag its top edge to resize; its
   open state and height are remembered. Routine background polling (the device list's auto-refresh) is left out
   so the log shows what *you* did.
+
+  ![The log panel open under the Devices page, showing each adb command with its exit code, duration and output](docs/images/log-panel.png)
 
 App settings (the remote host and ports, SDK/JDK/AVD-home overrides, theme/density, the log panel's state, remembered
 wireless addresses) are persisted to `Remote.Adb/settings.json` under your app-data folder
@@ -209,17 +228,22 @@ It also protects the local `adb` server the tunnel forwards to:
 ### Releasing
 
 Versioning is [Nerdbank.GitVersioning](https://github.com/dotnet/Nerdbank.GitVersioning) — `version.json`
-sets the major.minor; the patch comes from git height. To cut a release, let NBGV derive the tag:
+sets the major.minor (plus an optional prerelease suffix such as `-rc`); the patch is the git height since that
+version was set, so `1.0` ships as e.g. `v1.0.4`, not `v1.0.0`. To cut a release, let NBGV derive the tag from an
+up-to-date `master` (on any other commit it adds a `-g<sha>` suffix, making it a prerelease):
 
 ```bash
+git checkout master && git pull
 dotnet tool restore
-dotnet tool run nbgv tag      # creates v<major>.<minor>.<patch> for HEAD
-git push origin <tag>          # e.g. git push origin v0.1.18
+dotnet tool run nbgv tag      # creates v<major>.<minor>.<patch>[-suffix] for HEAD
+git push origin <tag>          # e.g. git push origin v1.0.4
 ```
 
-Pushing the `v*` tag triggers `.github/workflows/dotnet-release-app.yml`, which publishes one framework-dependent archive
-per RID (`win-x64`/`linux-x64`/`osx-x64`/`osx-arm64`), each containing both the Desktop and Console, and creates
-a GitHub Release with auto-generated notes. Bump `version.json` (and commit) when you want a new major/minor.
+Pushing the `v*` tag triggers `.github/workflows/dotnet-release-app.yml` (the shared `ccswe-apps/actions` workflow with
+`self-contained: true`), which publishes one self-contained archive per RID (`win-x64`/`linux-x64`/`osx-x64`/
+`osx-arm64`), each containing the Desktop and Console plus the license files, and creates a GitHub Release with
+auto-generated notes — marked as a prerelease when the tag has a suffix (e.g. `-rc`). Bump `version.json` (and commit)
+when you want a new major/minor, or to drop the prerelease suffix.
 
 ## License
 

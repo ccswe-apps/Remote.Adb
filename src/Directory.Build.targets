@@ -1,0 +1,12 @@
+<Project>
+
+  <!-- Ship the app's license and the third-party notices (plus the full license texts they reference) next to every
+       published executable, so each release archive carries them. Evaluated after each project, where OutputType is
+       known; libraries and test projects don't publish. -->
+  <ItemGroup Condition="('$(OutputType)' == 'Exe' or '$(OutputType)' == 'WinExe') and '$(IsTestProject)' != 'true'">
+    <None Include="$(MSBuildThisFileDirectory)..\LICENSE.md" Link="LICENSE.md" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)..\THIRD-PARTY-NOTICES.txt" Link="THIRD-PARTY-NOTICES.txt" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)..\licenses\*.txt" Link="licenses\%(Filename)%(Extension)" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+
+</Project>

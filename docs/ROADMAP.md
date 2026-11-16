@@ -21,7 +21,7 @@ manual scripts and steps.
 
 | Milestone | Notes |
 |-----------|-------|
-| **SDK Manager UI** (list / download / remove system images & packages via `sdkmanager`) | [tasks/sdk-manager.md](tasks/sdk-manager.md); unblocks creating from a not-yet-installed image. |
+| **SDK Manager UI** (list / download / remove system images & packages via `sdkmanager`) — **1.1** | [tasks/sdk-manager.md](tasks/sdk-manager.md); unblocks creating from a not-yet-installed image (until then, install images with Android Studio or `sdkmanager`). |
 | **DI lifetimes / stop manual construction** | [tasks/di-lifetimes.md](tasks/di-lifetimes.md); deferred until a concrete driver — scope view models to their owning window/view and resolve currently-`new`'d dialog windows/VMs from DI. |
 
 ## Working notes
