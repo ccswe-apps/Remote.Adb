@@ -82,6 +82,24 @@ internal sealed class AndroidSdk : IAndroidSdk
 
     private static string Executable(string name) => OperatingSystem.IsWindows() ? $"{name}.exe" : name;
 
+    /// <summary>
+    /// Orders cmdline-tools version folders newest first, comparing versions numerically (<c>16.0</c> before
+    /// <c>9.0</c>, which a text sort gets wrong); folders that aren't a version follow, by name.
+    /// </summary>
+    internal static IEnumerable<string> OrderNewestFirst(IEnumerable<string> directories) =>
+        directories
+            .Select(directory => (Directory: directory, Version: ParseVersion(Path.GetFileName(directory))))
+            .OrderByDescending(entry => entry.Version is not null)
+            .ThenByDescending(entry => entry.Version)
+            .ThenByDescending(entry => entry.Directory, StringComparer.Ordinal)
+            .Select(entry => entry.Directory);
+
+    // "16.0" / "9.0" / "2.1.3", or a bare major ("17").
+    private static Version? ParseVersion(string name) =>
+        Version.TryParse(name, out var version) ? version
+        : int.TryParse(name, out var major) && major >= 0 ? new Version(major, 0)
+        : null;
+
     // avdmanager/sdkmanager live in cmdline-tools/<version>/bin (newest preferred), with a legacy copy in
     // tools/bin on older SDKs. Pick the first that actually exists, else the canonical path so callers still
     // get a usable value.
@@ -103,7 +121,7 @@ internal sealed class AndroidSdk : IAndroidSdk
         {
             try
             {
-                foreach (var versionDirectory in Directory.EnumerateDirectories(cmdlineTools).OrderDescending())
+                foreach (var versionDirectory in OrderNewestFirst(Directory.EnumerateDirectories(cmdlineTools)))
                 {
                     candidates.Add(Path.Combine(versionDirectory, "bin", executable));
                 }
