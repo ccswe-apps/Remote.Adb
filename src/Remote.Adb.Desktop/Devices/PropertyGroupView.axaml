@@ -1,9 +1,9 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:common="using:Remote.Adb.Desktop.Common"
+             xmlns:dev="using:Remote.Adb.Desktop.Devices"
              xmlns:theme="using:CCSWE.Avalonia.Material"
-             x:Class="Remote.Adb.Desktop.Common.PropertyGroupView"
-             x:DataType="common:DetailGroup"
+             x:Class="Remote.Adb.Desktop.Devices.PropertyGroupView"
+             x:DataType="dev:DetailGroup"
              IsVisible="{Binding IsVisible}">
 
     <!-- One section: a Material Divider carrying the group name as its header, over the label → value rows.
@@ -13,8 +13,8 @@
         <theme:Divider Header="{Binding Header}"/>
         <ItemsControl ItemsSource="{Binding Rows}">
             <ItemsControl.ItemTemplate>
-                <DataTemplate DataType="common:AvdField">
-                    <common:PropertyRow/>
+                <DataTemplate DataType="dev:AvdField">
+                    <dev:PropertyRow/>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>

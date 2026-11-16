@@ -8,14 +8,13 @@
         <TextBlock Classes="BodyMedium" Foreground="{DynamicResource OnSurfaceVariant}" TextWrapping="Wrap"
                    Text="Enter the IP address &amp; port shown under Wireless debugging on a paired device, or the address of a device in adb tcpip mode (the port defaults to 5555). The address is remembered and reconnected whenever adb restarts."/>
 
-        <StackPanel Spacing="4">
-            <TextBlock Text="IP address &amp; port" Classes="BodySmall" Foreground="{DynamicResource OnSurfaceVariant}"/>
+        <StackPanel Classes="Field">
+            <TextBlock Classes="FieldLabel" Text="IP address &amp; port"/>
             <TextBox Text="{Binding Address}" PlaceholderText="192.168.1.20:41235"
                      FontFamily="{DynamicResource CodeFontFamily}" AutomationProperties.Name="Device address"/>
         </StackPanel>
 
-        <TextBlock Text="{Binding ErrorMessage}" Classes="BodySmall" Foreground="{DynamicResource Error}" TextWrapping="Wrap"
-                   IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+        <TextBlock Classes="ErrorText" Text="{Binding ErrorMessage}"/>
 
         <StackPanel Orientation="Horizontal" Spacing="12">
             <Button Classes="Filled" Content="Connect" Command="{Binding ConnectCommand}" IsDefault="True"/>

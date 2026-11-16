@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace Remote.Adb.Desktop.Common;
+namespace Remote.Adb.Desktop.Devices;
 
 /// <summary>
 /// One label → value line in a details pane that flips between read-only display and an editor. Carries the

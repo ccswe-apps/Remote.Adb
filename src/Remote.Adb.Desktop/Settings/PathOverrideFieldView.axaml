@@ -1,0 +1,18 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Remote.Adb.Desktop.Settings"
+             x:Class="Remote.Adb.Desktop.Settings.PathOverrideFieldView"
+             x:DataType="vm:PathOverrideField">
+
+    <!-- One folder override: label, path box (validated and saved when focus leaves it), its inline error, and a
+         readout of the path actually in use. -->
+    <StackPanel Classes="Field">
+        <TextBlock Classes="FieldLabel" Text="{Binding Label}"/>
+        <TextBox Text="{Binding Value, UpdateSourceTrigger=LostFocus}" PlaceholderText="{Binding Placeholder}"
+                 AutomationProperties.Name="{Binding Label}"/>
+        <TextBlock Classes="ErrorText" Text="{Binding Error}"/>
+        <TextBlock Classes="BodySmall" TextWrapping="Wrap" Text="{Binding Status}"
+                   Foreground="{DynamicResource OnSurfaceVariant}"/>
+    </StackPanel>
+
+</UserControl>

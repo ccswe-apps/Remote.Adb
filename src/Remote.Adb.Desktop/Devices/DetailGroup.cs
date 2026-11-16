@@ -1,6 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace Remote.Adb.Desktop.Common;
+namespace Remote.Adb.Desktop.Devices;
 
 /// <summary>
 /// A titled group of <see cref="AvdField"/>s in a details pane, rendered as a divider-headed section whose
