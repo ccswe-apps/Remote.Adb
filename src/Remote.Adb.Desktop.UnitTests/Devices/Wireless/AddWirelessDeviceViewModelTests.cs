@@ -3,6 +3,7 @@ using Moq;
 using Remote.Adb.Core.Adb.Wireless;
 using Remote.Adb.Desktop.Devices.Wireless;
 using Remote.Adb.Desktop.UnitTests.Fakes;
+using Remote.Adb.Testing;
 
 namespace Remote.Adb.Desktop.UnitTests.Devices.Wireless;
 
@@ -11,21 +12,19 @@ public class AddWirelessDeviceViewModelTests
 {
     private protected bool? Closed;
     private protected FakeTimerFactory TimerFactory = null!;
-    private protected Mock<IWirelessAdbService> Wireless = null!;
+    private protected WirelessMock Wireless = null!;
 
     [SetUp]
     public void SetUp()
     {
         Closed = null;
         TimerFactory = new FakeTimerFactory();
-        Wireless = new Mock<IWirelessAdbService>();
-        Wireless.Setup(wireless => wireless.IsDiscoveryAvailableAsync(It.IsAny<CancellationToken>())).ReturnsAsync(true);
-        Wireless.Setup(wireless => wireless.DiscoverAsync(It.IsAny<CancellationToken>())).ReturnsAsync(Array.Empty<MdnsService>());
+        Wireless = new WirelessMock();
     }
 
     private protected AddWirelessDeviceViewModel CreateViewModel()
     {
-        var viewModel = new AddWirelessDeviceViewModel(Wireless.Object, TimerFactory);
+        var viewModel = new AddWirelessDeviceViewModel(Wireless.Object, TimerFactory, new RecordingExceptionReporter(), new LoggerFake<AddWirelessDeviceViewModel>());
         viewModel.CloseRequested += result => Closed = result;
         return viewModel;
     }
@@ -47,7 +46,7 @@ public class AddWirelessDeviceViewModelTests
         [Test]
         public async Task It_closes_with_success_when_the_device_connected()
         {
-            Wireless
+            Wireless.Inner
                 .Setup(wireless => wireless.PairAsync("192.168.1.20:37123", "123456", It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new WirelessPairResult(true, true, "Paired and connected.", "adb-x"));
             var viewModel = CreateViewModel();
@@ -62,9 +61,7 @@ public class AddWirelessDeviceViewModelTests
         [Test]
         public async Task It_moves_to_connect_with_the_host_prefilled_when_paired_but_not_connected()
         {
-            Wireless
-                .Setup(wireless => wireless.PairAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new WirelessPairResult(true, false, "Paired, but…", "adb-x"));
+            Wireless.PairReturns(new WirelessPairResult(true, false, "Paired, but…", "adb-x"));
             var viewModel = CreateViewModel();
             viewModel.Pair.PairingAddress = "192.168.1.20:37123";
             viewModel.Pair.Code = "123456";
@@ -83,9 +80,7 @@ public class AddWirelessDeviceViewModelTests
         [Test]
         public async Task It_shows_the_error_and_stays_open_when_pairing_fails()
         {
-            Wireless
-                .Setup(wireless => wireless.PairAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new WirelessPairResult(false, false, "error: protocol fault"));
+            Wireless.PairReturns(new WirelessPairResult(false, false, "error: protocol fault"));
             var viewModel = CreateViewModel();
             viewModel.Pair.PairingAddress = "192.168.1.20:37123";
             viewModel.Pair.Code = "000000";
@@ -106,7 +101,7 @@ public class AddWirelessDeviceViewModelTests
         [Test]
         public async Task It_closes_with_success_once_connected()
         {
-            Wireless
+            Wireless.Inner
                 .Setup(wireless => wireless.ConnectAsync("192.168.1.20:5555", true, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new WirelessConnectResult(WirelessConnectOutcome.Connected, "connected to 192.168.1.20:5555"));
             var viewModel = CreateViewModel();
@@ -120,9 +115,7 @@ public class AddWirelessDeviceViewModelTests
         [Test]
         public async Task It_explains_an_authentication_failure()
         {
-            Wireless
-                .Setup(wireless => wireless.ConnectAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new WirelessConnectResult(WirelessConnectOutcome.AuthenticationFailed, "failed to authenticate to 192.168.1.20:5555"));
+            Wireless.ConnectReturns(WirelessConnectOutcome.AuthenticationFailed, "failed to authenticate to 192.168.1.20:5555");
             var viewModel = CreateViewModel();
             viewModel.Connect.Address = "192.168.1.20:5555";
 
@@ -171,14 +164,12 @@ public class AddWirelessDeviceViewModelTests
         [TestCase(MdnsServiceType.Legacy, true)]
         public async Task It_connects_and_remembers_only_a_stable_legacy_address(MdnsServiceType type, bool remember)
         {
-            Wireless
-                .Setup(wireless => wireless.ConnectAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new WirelessConnectResult(WirelessConnectOutcome.Connected, "connected"));
+            Wireless.ConnectReturns(WirelessConnectOutcome.Connected, "connected");
             var viewModel = CreateViewModel();
 
             await viewModel.ConnectToServiceCommand.ExecuteAsync(new MdnsService("adb-x", type, "192.168.1.20", 41235));
 
-            Wireless.Verify(wireless => wireless.ConnectAsync("192.168.1.20:41235", remember, It.IsAny<CancellationToken>()), Times.Once);
+            Wireless.Inner.Verify(wireless => wireless.ConnectAsync("192.168.1.20:41235", remember, It.IsAny<CancellationToken>()), Times.Once);
             Assert.That(Closed, Is.True);
         }
 
@@ -200,12 +191,8 @@ public class AddWirelessDeviceViewModelTests
         public async Task It_asks_to_close_only_once()
         {
             var closes = 0;
-            Wireless
-                .Setup(wireless => wireless.PairAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new WirelessPairResult(true, true, "Paired and connected.", "adb-x"));
-            Wireless
-                .Setup(wireless => wireless.ConnectAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new WirelessConnectResult(WirelessConnectOutcome.Connected, "connected"));
+            Wireless.PairReturns(new WirelessPairResult(true, true, "Paired and connected.", "adb-x"));
+            Wireless.ConnectReturns(WirelessConnectOutcome.Connected, "connected");
             var viewModel = CreateViewModel();
             viewModel.CloseRequested += _ => closes++;
             viewModel.Pair.PairingAddress = "192.168.1.20:37123";

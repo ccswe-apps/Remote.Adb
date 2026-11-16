@@ -1,7 +1,9 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
 using Remote.Adb.Core.Adb.Wireless;
 using Remote.Adb.Desktop.Common;
+using Remote.Adb.Desktop.Common.Diagnostics;
 using Remote.Adb.Desktop.Common.Threading;
 
 namespace Remote.Adb.Desktop.Devices.Wireless;
@@ -23,15 +25,22 @@ public sealed partial class AddWirelessDeviceViewModel : ViewModelBase, IDialogV
     [ObservableProperty]
     private string? _pairedNotice;
 
+    private readonly IUnhandledExceptionReporter _reporter;
+
     [ObservableProperty]
     private int _selectedTab = PairTab;
 
-    public AddWirelessDeviceViewModel(IWirelessAdbService wireless, ITimerFactory timerFactory)
+    public AddWirelessDeviceViewModel(
+        IWirelessAdbService wireless,
+        ITimerFactory timerFactory,
+        IUnhandledExceptionReporter reporter,
+        ILogger<AddWirelessDeviceViewModel> logger)
     {
+        _reporter = reporter;
         Pair = new PairingCodeViewModel(wireless);
         Connect = new ConnectAddressViewModel(wireless);
-        Discovery = new WirelessDiscoveryViewModel(wireless, timerFactory);
-        Qr = new QrPairingViewModel(wireless, Discovery, Pair, timerFactory);
+        Discovery = new WirelessDiscoveryViewModel(wireless, timerFactory, logger);
+        Qr = new QrPairingViewModel(wireless, Discovery, Pair, timerFactory, reporter);
 
         Pair.Paired += OnPaired;
         Qr.Paired += OnPaired;
@@ -87,7 +96,7 @@ public sealed partial class AddWirelessDeviceViewModel : ViewModelBase, IDialogV
     public void OnOpened()
     {
         Qr.Start();
-        _ = Discovery.StartAsync();
+        Discovery.StartAsync().Forget(_reporter);
     }
 
     private void OnPaired(WirelessPairResult result)

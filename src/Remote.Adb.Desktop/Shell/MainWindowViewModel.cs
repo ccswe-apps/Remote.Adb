@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Remote.Adb.Core.Diagnostics;
 using Remote.Adb.Core.Settings;
 using Remote.Adb.Desktop.Common;
+using Remote.Adb.Desktop.Common.Diagnostics;
 using Remote.Adb.Desktop.Common.Notifications;
 using Remote.Adb.Desktop.Devices;
 using Remote.Adb.Desktop.Logging;
@@ -29,12 +30,17 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private double _logPanelHeight;
     private readonly INotificationService _notifications;
+    private readonly IUnhandledExceptionReporter _reporter;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentScreen))]
     private NavigationDestination? _selectedDestination;
 
     private readonly ISettingsService _settings;
+
+    // Held by reference so "go to Settings" (a diagnostic toast's click) doesn't depend on the drawer label.
+    private readonly NavigationDestination _settingsDestination;
+
     private bool _windowActive = true;
 
     public MainWindowViewModel(
@@ -45,10 +51,12 @@ public partial class MainWindowViewModel : ViewModelBase
         StatusBarViewModel statusBar,
         ISettingsService settings,
         ISdkDiagnostics diagnostics,
-        INotificationService notifications)
+        INotificationService notifications,
+        IUnhandledExceptionReporter reporter)
     {
         _diagnostics = diagnostics;
         _notifications = notifications;
+        _reporter = reporter;
         _settings = settings;
 
         LogPanel = logPanel;
@@ -59,11 +67,12 @@ public partial class MainWindowViewModel : ViewModelBase
         _logPanelHeight = Math.Max(MinLogPanelHeight, settings.LogPanelHeight);
         StatusBar.SetLogVisible(_isLogPanelOpen);
 
+        _settingsDestination = new NavigationDestination("Settings", "IconGear", settingsScreen);
         Destinations =
         [
             new NavigationDestination("Devices", "IconDeviceMobile", devices),
             new NavigationDestination("Tunnel", "IconPlugsConnected", tunnel),
-            new NavigationDestination("Settings", "IconGear", settingsScreen),
+            _settingsDestination,
         ];
 
         // Set via the property (not the field) so the initial destination is activated too.
@@ -112,7 +121,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void GoToSettings()
     {
-        SelectedDestination = Destinations.First(destination => destination.Label == "Settings");
+        SelectedDestination = _settingsDestination;
     }
 
     partial void OnIsLogPanelOpenChanged(bool value)
@@ -166,7 +175,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     // A screen is live when it is the selected destination and the window is in front. Deactivate the previously
     // live screen and activate the new one whenever either input changes. Activation is fire-and-forget — handlers
-    // surface their own errors to the screen.
+    // surface their own errors to the screen, and anything they miss goes to the unhandled-exception reporter.
     private void UpdateActiveScreen()
     {
         var desired = _windowActive ? SelectedDestination?.Screen as IActivatable : null;
@@ -177,6 +186,6 @@ public partial class MainWindowViewModel : ViewModelBase
 
         _activeScreen?.OnDeactivated();
         _activeScreen = desired;
-        _ = desired?.OnActivatedAsync();
+        desired?.OnActivatedAsync().Forget(_reporter);
     }
 }

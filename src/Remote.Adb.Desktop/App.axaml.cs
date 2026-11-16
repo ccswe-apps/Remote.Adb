@@ -2,9 +2,11 @@ using System.Diagnostics.CodeAnalysis;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
 using CCSWE.Avalonia.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Remote.Adb.Core.Settings;
+using Remote.Adb.Desktop.Common.Diagnostics;
 using Remote.Adb.Desktop.Shell;
 using Remote.Adb.Desktop.Theming;
 
@@ -35,6 +37,20 @@ public partial class App : Application, IServiceProviderAccessor
             base.OnFrameworkInitializationCompleted();
             return;
         }
+
+        // The safety net: an exception nothing else caught — a command that threw on the UI thread, or a faulted task
+        // nobody observed — is logged and shown as a toast rather than crashing the app or vanishing silently.
+        var reporter = Services.GetRequiredService<IUnhandledExceptionReporter>();
+        Dispatcher.UIThread.UnhandledException += (_, args) =>
+        {
+            reporter.Report(args.Exception);
+            args.Handled = true;
+        };
+        TaskScheduler.UnobservedTaskException += (_, args) =>
+        {
+            reporter.Report(args.Exception.GetBaseException());
+            args.SetObserved();
+        };
 
         // Apply the persisted theme and density now that Avalonia's styles are loaded.
         var settings = Services.GetRequiredService<ISettingsService>();

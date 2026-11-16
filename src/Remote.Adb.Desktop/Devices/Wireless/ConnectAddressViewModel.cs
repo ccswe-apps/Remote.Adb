@@ -1,8 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Remote.Adb.Core.Adb.Wireless;
-using Remote.Adb.Core.Common;
-using Remote.Adb.Desktop.Common;
 
 namespace Remote.Adb.Desktop.Devices.Wireless;
 
@@ -10,18 +8,11 @@ namespace Remote.Adb.Desktop.Devices.Wireless;
 /// The "Connect" tab: connects to a device by <c>host[:port]</c> — a device in legacy <c>adb tcpip</c> mode, or an
 /// already-paired Android 11+ device at the address its Wireless debugging screen shows.
 /// </summary>
-public sealed partial class ConnectAddressViewModel : ViewModelBase
+public sealed partial class ConnectAddressViewModel : FormViewModelBase
 {
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ConnectCommand))]
     private string _address = string.Empty;
-
-    [ObservableProperty]
-    private string? _errorMessage;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(ConnectCommand))]
-    private bool _isBusy;
 
     // Whether a successful connection is saved for automatic reconnects. Off for a TLS (Android 11+) connect address
     // picked from discovery, whose port changes whenever Wireless debugging is toggled.
@@ -38,44 +29,37 @@ public sealed partial class ConnectAddressViewModel : ViewModelBase
     /// <summary>Raised once the device is connected.</summary>
     public event Action? Connected;
 
-    private bool CanConnect() => !IsBusy && !string.IsNullOrWhiteSpace(Address);
+    // The command itself is disabled while it runs (no concurrent executions), so busy needn't be checked here.
+    private bool CanConnect() => !string.IsNullOrWhiteSpace(Address);
 
     [RelayCommand(CanExecute = nameof(CanConnect))]
-    private async Task ConnectAsync()
+    private Task ConnectAsync() => RunGuardedAsync(async () =>
     {
-        IsBusy = true;
-        ErrorMessage = null;
+        var result = await _wireless.ConnectAsync(Address, Remember);
+        if (!result.Success)
+        {
+            return Describe(result);
+        }
 
-        try
-        {
-            var result = await _wireless.ConnectAsync(Address, Remember);
-            if (result.Success)
-            {
-                Connected?.Invoke();
-                return;
-            }
-
-            ErrorMessage = Describe(result);
-        }
-        catch (ProcessLaunchException exception)
-        {
-            ErrorMessage = exception.Message;
-        }
-        finally
-        {
-            IsBusy = false;
-        }
-    }
+        Connected?.Invoke();
+        return null;
+    });
 
     /// <summary>
     /// Connects to an address picked from discovery: a legacy <c>adb tcpip</c> device (stable port 5555) is remembered,
-    /// a TLS connect address (port changes on every Wireless debugging toggle) isn't.
+    /// a TLS connect address (port changes on every Wireless debugging toggle) isn't. Ignored while a connect is already
+    /// running, so it can't overwrite the address (and remember choice) of the attempt in flight.
     /// </summary>
     public Task ConnectToAsync(MdnsService service)
     {
+        if (IsBusy || ConnectCommand.IsRunning)
+        {
+            return Task.CompletedTask;
+        }
+
         Address = service.Address;
         Remember = service.Type == MdnsServiceType.Legacy;
-        return ConnectCommand.ExecuteAsync(null);
+        return ConnectCommand.CanExecute(null) ? ConnectCommand.ExecuteAsync(null) : Task.CompletedTask;
     }
 
     // adb's message, plus the likely fix for the failures people actually hit.

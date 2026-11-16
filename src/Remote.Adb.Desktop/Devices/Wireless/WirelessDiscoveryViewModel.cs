@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.Extensions.Logging;
 using Remote.Adb.Core.Adb.Wireless;
 using Remote.Adb.Core.Common;
 using Remote.Adb.Core.Logging;
@@ -25,10 +26,10 @@ public sealed partial class WirelessDiscoveryViewModel : ViewModelBase
     private readonly PeriodicRefresher _refresher;
     private readonly IWirelessAdbService _wireless;
 
-    public WirelessDiscoveryViewModel(IWirelessAdbService wireless, ITimerFactory timerFactory)
+    public WirelessDiscoveryViewModel(IWirelessAdbService wireless, ITimerFactory timerFactory, ILogger logger)
     {
         _wireless = wireless;
-        _refresher = new PeriodicRefresher(timerFactory, RefreshInterval, RefreshAsync);
+        _refresher = new PeriodicRefresher(timerFactory, RefreshInterval, RefreshAsync, logger);
     }
 
     /// <summary>Paired (or legacy <c>adb tcpip</c>) devices that can be connected.</summary>

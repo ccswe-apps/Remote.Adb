@@ -5,7 +5,15 @@ namespace Remote.Adb.Desktop.UnitTests.Fakes;
 /// <summary>An <see cref="IDispatcherTimer"/> whose ticks a test raises synchronously via <see cref="RaiseTick"/>.</summary>
 public sealed class FakeDispatcherTimer : IDispatcherTimer
 {
+    public FakeDispatcherTimer(TimeSpan interval)
+    {
+        Interval = interval;
+    }
+
     public event EventHandler? Tick;
+
+    /// <summary>The interval the timer was created with.</summary>
+    public TimeSpan Interval { get; }
 
     public bool IsRunning { get; private set; }
 
