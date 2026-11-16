@@ -99,8 +99,11 @@ dotnet run --project src/Remote.Adb.Console -- tunnel
   open state and height are remembered. Routine background polling (the device list's auto-refresh) is left out
   so the log shows what *you* did.
 
-App settings (the remote host and ports, SDK/JDK/AVD-home overrides, theme/density, the log panel's state) are
-persisted under your app-data folder.
+App settings (the remote host and ports, SDK/JDK/AVD-home overrides, theme/density, the log panel's state, remembered
+wireless addresses) are persisted to `Remote.Adb/settings.json` under your app-data folder
+(`%APPDATA%` on Windows, `~/.config` on Linux). Set the `REMOTE_ADB_SETTINGS` environment variable to a file path to
+use a different settings file instead — handy for trying things out without touching your real settings (the
+desktop app and the console both honor it).
 
 ### Console
 

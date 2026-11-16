@@ -194,8 +194,9 @@ On a Windows host you can skip WSLg: launch the built `Remote.Adb.Desktop.exe`, 
 `AutomationProperties.Name` for this (`Show / hide log` on the status bar, `Collapse / expand navigation` on the
 rail toggle); text buttons are found by their caption (e.g. `Refresh`).
 
-> **The app uses your real settings.** `SettingsStore` resolves `Environment.SpecialFolder.ApplicationData`, which
-> on Windows ignores an overridden `%APPDATA%` — so a test launch reads (and writes) the real
-> `%USERPROFILE%\AppData\Roaming\Remote.Adb\settings.json`. If `tunnelAutoConnect` is on, every launch opens the
-> real SSH tunnel (`pkill -x adb` on the remote, binds the forward). Back the file up, set `tunnelAutoConnect` to
-> `false` for the session, and restore it afterwards.
+> **Point test launches at a scratch settings file.** By default the app reads (and writes) the real settings —
+> `Environment.SpecialFolder.ApplicationData` ignores an overridden `%APPDATA%` on Windows — and if
+> `tunnelAutoConnect` is on, every launch opens the real SSH tunnel (`pkill -x adb` on the remote, binds the
+> forward). Set `REMOTE_ADB_SETTINGS` to a scratch path (e.g. `$env:REMOTE_ADB_SETTINGS = "$env:TEMP\remote-adb-test\settings.json"`)
+> before launching; a missing file starts from defaults (no tunnel host, so nothing auto-connects). The same
+> applies under WSLg (`REMOTE_ADB_SETTINGS=/tmp/remote-adb-test.json dotnet …`).
