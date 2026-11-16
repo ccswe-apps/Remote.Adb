@@ -36,6 +36,18 @@ public class WirelessOutputParserTests
         }
 
         [Test]
+        public void It_falls_back_to_stderr_when_stdout_is_empty()
+        {
+            var result = WirelessOutputParser.ParseConnect(Output("", stderr: "failed to connect to '192.168.1.20:5555': Connection refused\n"));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Outcome, Is.EqualTo(WirelessConnectOutcome.ConnectionFailed));
+                Assert.That(result.Message, Is.EqualTo("failed to connect to '192.168.1.20:5555': Connection refused"));
+            });
+        }
+
+        [Test]
         public void It_reports_a_non_zero_exit_as_server_unavailable()
         {
             var result = WirelessOutputParser.ParseConnect(Output("", exitCode: 1, stderr: "error: cannot connect to daemon\n"));
@@ -98,6 +110,20 @@ public class WirelessOutputParserTests
         }
 
         [Test]
+        public void It_handles_crlf_line_endings()
+        {
+            var result = WirelessOutputParser.ParsePair(
+                Output("Enter pairing code: \r\nSuccessfully paired to 192.168.1.20:37123 [guid=adb-R58M123ABC-AbCdEf]\r\n"));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Paired, Is.True);
+                Assert.That(result.Guid, Is.EqualTo("adb-R58M123ABC-AbCdEf"));
+                Assert.That(result.Message, Is.EqualTo("Successfully paired to 192.168.1.20:37123 [guid=adb-R58M123ABC-AbCdEf]"));
+            });
+        }
+
+        [Test]
         public void It_strips_the_prompt_from_a_stdout_only_failure()
         {
             var result = WirelessOutputParser.ParsePair(Output("Enter pairing code: Failed: Wrong password", exitCode: 1));
@@ -108,6 +134,18 @@ public class WirelessOutputParserTests
 
     public class When_ParseMdnsServices_Is_Called : WirelessOutputParserTests
     {
+        [Test]
+        public void It_handles_crlf_line_endings()
+        {
+            const string output =
+                "List of discovered mdns services\r\n" +
+                "adb-R58M123ABC-AbCdEf\t_adb-tls-connect._tcp.\t192.168.1.20:41235\r\n";
+
+            var services = WirelessOutputParser.ParseMdnsServices(output);
+
+            Assert.That(services, Is.EqualTo(new[] { new MdnsService("adb-R58M123ABC-AbCdEf", MdnsServiceType.Connect, "192.168.1.20", 41235) }));
+        }
+
         [Test]
         public void It_parses_each_service_and_skips_the_header_and_junk()
         {

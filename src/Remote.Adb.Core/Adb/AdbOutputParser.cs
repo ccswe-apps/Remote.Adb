@@ -1,3 +1,5 @@
+using Remote.Adb.Core.Common;
+
 namespace Remote.Adb.Core.Adb;
 
 /// <summary>
@@ -6,35 +8,14 @@ namespace Remote.Adb.Core.Adb;
 /// </summary>
 internal static class AdbOutputParser
 {
+    private const string DevicesHeader = "List of devices";
+
     /// <summary>
     /// Parses the output of <c>adb devices</c>, returning the serials of devices in the
     /// <c>device</c> (online) state. The header line and offline/unauthorized entries are skipped.
     /// </summary>
-    public static IReadOnlyList<string> ParseDevices(string output)
-    {
-        var serials = new List<string>();
-
-        foreach (var rawLine in output.AsSpan().EnumerateLines())
-        {
-            var line = rawLine.Trim();
-
-            if (line.IsEmpty || line.StartsWith("List of devices", StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            var rest = line;
-            var serial = NextToken(ref rest);
-            var state = NextToken(ref rest);
-
-            if (!serial.IsEmpty && state.SequenceEqual("device"))
-            {
-                serials.Add(serial.ToString());
-            }
-        }
-
-        return serials;
-    }
+    public static IReadOnlyList<string> ParseDevices(string output) =>
+        ParseDeviceList(output).Where(device => device.IsOnline).Select(device => device.Serial).ToList();
 
     /// <summary>
     /// Parses the output of <c>adb devices -l</c> into devices, preserving every connection state
@@ -49,14 +30,14 @@ internal static class AdbOutputParser
         {
             var line = rawLine.Trim();
 
-            if (line.IsEmpty || line.StartsWith("List of devices", StringComparison.Ordinal))
+            if (line.IsEmpty || line.StartsWith(DevicesHeader, StringComparison.Ordinal))
             {
                 continue;
             }
 
             var rest = line;
-            var serial = NextToken(ref rest);
-            var state = NextToken(ref rest);
+            var serial = SpanTokenizer.NextToken(ref rest);
+            var state = SpanTokenizer.NextToken(ref rest);
 
             if (serial.IsEmpty || state.IsEmpty)
             {
@@ -68,7 +49,7 @@ internal static class AdbOutputParser
             string? device = null;
             string? transportId = null;
 
-            for (var token = NextToken(ref rest); !token.IsEmpty; token = NextToken(ref rest))
+            for (var token = SpanTokenizer.NextToken(ref rest); !token.IsEmpty; token = SpanTokenizer.NextToken(ref rest))
             {
                 var colon = token.IndexOf(':');
                 if (colon <= 0)
@@ -101,25 +82,5 @@ internal static class AdbOutputParser
         }
 
         return devices;
-    }
-
-    // Returns the next space/tab-delimited token, advancing `remaining` past it; an empty span when none remain.
-    private static ReadOnlySpan<char> NextToken(ref ReadOnlySpan<char> remaining)
-    {
-        var i = 0;
-        while (i < remaining.Length && remaining[i] is ' ' or '\t')
-        {
-            i++;
-        }
-
-        var start = i;
-        while (i < remaining.Length && remaining[i] is not (' ' or '\t'))
-        {
-            i++;
-        }
-
-        var token = remaining[start..i];
-        remaining = remaining[i..];
-        return token;
     }
 }

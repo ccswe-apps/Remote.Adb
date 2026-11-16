@@ -81,5 +81,20 @@ public class AdbOutputParserTests
 
             Assert.That(devices, Is.Empty);
         }
+
+        [Test]
+        public void It_handles_crlf_line_endings()
+        {
+            var output = "List of devices attached\r\nemulator-5554\tdevice transport_id:3\r\n0A1B2C3D\tunauthorized\r\n";
+
+            var devices = AdbOutputParser.ParseDeviceList(output);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(devices.Select(d => d.Serial), Is.EqualTo(new[] { "emulator-5554", "0A1B2C3D" }));
+                Assert.That(devices[0].TransportId, Is.EqualTo("3"));
+                Assert.That(devices[1].State, Is.EqualTo("unauthorized"));
+            });
+        }
     }
 }

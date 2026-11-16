@@ -9,6 +9,8 @@ namespace Remote.Adb.Core.Adb.Wireless;
 /// </summary>
 internal static class WirelessOutputParser
 {
+    // The tool name in a failure message from ProcessResult.Describe.
+    private const string Adb = "adb";
     private const string MdnsHeader = "List of discovered mdns services";
     private const string PairedPrefix = "Successfully paired to ";
     private const string PairingPrompt = "Enter pairing code:";
@@ -34,19 +36,6 @@ internal static class WirelessOutputParser
     public static bool IsMdnsAvailable(string output) =>
         FirstLine(output).StartsWith("mdns daemon version", StringComparison.Ordinal);
 
-    // The most useful text adb printed: stderr if any (errors), else stdout, else the exit code.
-    private static string MessageOf(ProcessResult result)
-    {
-        var error = result.StandardError.Trim();
-        if (error.Length > 0)
-        {
-            return error;
-        }
-
-        var output = result.StandardOutput.Trim();
-        return output.Length > 0 ? output : $"adb exited with code {result.ExitCode}";
-    }
-
     /// <summary>
     /// Classifies <c>adb connect</c>. adb exits 0 whenever its server answered — even when the connection failed —
     /// so the outcome comes from the message; a non-zero exit means adb couldn't reach (or start) its server.
@@ -55,7 +44,7 @@ internal static class WirelessOutputParser
     {
         if (!result.Success)
         {
-            return new WirelessConnectResult(WirelessConnectOutcome.ServerUnavailable, MessageOf(result));
+            return new WirelessConnectResult(WirelessConnectOutcome.ServerUnavailable, result.Describe(Adb));
         }
 
         var line = FirstLine(result.StandardOutput);
@@ -89,7 +78,7 @@ internal static class WirelessOutputParser
     {
         var line = FirstLine(result.StandardOutput);
         var success = result.Success && line.StartsWith("disconnected", StringComparison.Ordinal);
-        return new WirelessResult(success, success ? line.ToString() : MessageOf(result));
+        return new WirelessResult(success, success ? line.ToString() : result.Describe(Adb));
     }
 
     /// <summary>
@@ -100,7 +89,7 @@ internal static class WirelessOutputParser
     {
         foreach (var rawLine in output.AsSpan().EnumerateLines())
         {
-            var address = TokenAfter(rawLine, "inet");
+            var address = SpanTokenizer.TokenAfter(rawLine, "inet");
             if (address.IsEmpty)
             {
                 continue;
@@ -122,8 +111,8 @@ internal static class WirelessOutputParser
     {
         foreach (var rawLine in output.AsSpan().EnumerateLines())
         {
-            var source = TokenAfter(rawLine, "src");
-            if (!source.IsEmpty && TokenAfter(rawLine, "dev").StartsWith("wlan", StringComparison.Ordinal))
+            var source = SpanTokenizer.TokenAfter(rawLine, "src");
+            if (!source.IsEmpty && SpanTokenizer.TokenAfter(rawLine, "dev").StartsWith("wlan", StringComparison.Ordinal))
             {
                 return source.ToString();
             }
@@ -189,7 +178,7 @@ internal static class WirelessOutputParser
 
         if (!result.Success || paired < 0)
         {
-            return new WirelessPairResult(false, false, StripPrompt(MessageOf(result)));
+            return new WirelessPairResult(false, false, StripPrompt(result.Describe(Adb)));
         }
 
         var line = FirstLine(output[paired..].ToString());
@@ -228,31 +217,9 @@ internal static class WirelessOutputParser
     {
         var line = FirstLine(result.StandardOutput);
         var success = result.Success && line.StartsWith("restarting in TCP mode", StringComparison.Ordinal);
-        return new WirelessResult(success, success ? line.ToString() : MessageOf(result));
+        return new WirelessResult(success, success ? line.ToString() : result.Describe(Adb));
     }
 
     private static string StripPrompt(string message) =>
         message.StartsWith(PairingPrompt, StringComparison.Ordinal) ? message[PairingPrompt.Length..].Trim() : message;
-
-    // The whitespace-delimited token following `keyword` in `line` (e.g. the address after "src"), or empty.
-    private static ReadOnlySpan<char> TokenAfter(ReadOnlySpan<char> line, string keyword)
-    {
-        var rest = line;
-        while (!rest.IsEmpty)
-        {
-            rest = rest.TrimStart();
-            var end = rest.IndexOfAny(' ', '\t');
-            var token = end < 0 ? rest : rest[..end];
-            rest = end < 0 ? [] : rest[end..];
-
-            if (token.SequenceEqual(keyword))
-            {
-                rest = rest.TrimStart();
-                var valueEnd = rest.IndexOfAny(' ', '\t');
-                return valueEnd < 0 ? rest : rest[..valueEnd];
-            }
-        }
-
-        return [];
-    }
 }
