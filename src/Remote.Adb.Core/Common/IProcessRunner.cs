@@ -11,9 +11,17 @@ internal interface IProcessRunner
     /// Runs <paramref name="fileName"/> to completion and captures its output. When
     /// <paramref name="standardInput"/> is supplied it is written to the process's stdin (which is then
     /// closed) — needed for tools that prompt, such as <c>avdmanager create avd</c>. <paramref name="environment"/>
-    /// overlays variables onto the child's environment (e.g. <c>JAVA_HOME</c> for the Java-based tools).
+    /// overlays variables onto the child's environment (e.g. <c>JAVA_HOME</c> for the Java-based tools). A cancellation
+    /// kills the process and its descendants.
     /// </summary>
     Task<ProcessResult> RunAsync(string fileName, IReadOnlyList<string> arguments, string? standardInput = null, IReadOnlyDictionary<string, string>? environment = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Like <see cref="RunAsync(string, IReadOnlyList{string}, string?, IReadOnlyDictionary{string, string}?, CancellationToken)"/>,
+    /// but a cancellation kills only the process itself unless <paramref name="killProcessTree"/> is set — for a tool
+    /// that may spawn a long-lived daemon as its child (an adb client starting the adb server), which must outlive it.
+    /// </summary>
+    Task<ProcessResult> RunAsync(string fileName, IReadOnlyList<string> arguments, string? standardInput, IReadOnlyDictionary<string, string>? environment, bool killProcessTree, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Starts <paramref name="fileName"/> without waiting for it to exit, for long-running

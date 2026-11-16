@@ -18,7 +18,7 @@ internal sealed class ProcessRunner : IProcessRunner
         _logger = logger;
     }
 
-    private static ProcessStartInfo CreateStartInfo(string fileName, IReadOnlyList<string> arguments, IReadOnlyDictionary<string, string>? environment = null)
+    private static ProcessStartInfo CreateStartInfo(string fileName, IReadOnlyList<string> arguments, IReadOnlyDictionary<string, string>? environment)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -75,6 +75,36 @@ internal sealed class ProcessRunner : IProcessRunner
         fileName.EndsWith(".bat", StringComparison.OrdinalIgnoreCase)
         || fileName.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase);
 
+    // The shared launch path for every entry point: build the start info, log the start, and start the process —
+    // turning an OS launch failure into a logged ProcessLaunchException. A run-to-completion command logs its start at
+    // Debug (its completion line carries the detail); a long-running one at Information unless it's background work.
+    private LaunchedProcess Launch(string fileName, IReadOnlyList<string> arguments, IReadOnlyDictionary<string, string>? environment, bool captureOutput, bool redirectInput, bool runToCompletion)
+    {
+        var startInfo = CreateStartInfo(fileName, arguments, environment);
+        startInfo.RedirectStandardOutput = captureOutput;
+        startInfo.RedirectStandardError = captureOutput;
+        startInfo.RedirectStandardInput = redirectInput;
+
+        var command = FormatCommand(fileName, arguments);
+        var background = CommandLogScope.IsBackground;
+        ProcessRunnerLog.CommandStarted(_logger, runToCompletion || background ? LogLevel.Debug : LogLevel.Information, command);
+
+        var process = new Process { StartInfo = startInfo };
+        try
+        {
+            process.Start();
+        }
+        catch (Win32Exception exception)
+        {
+            process.Dispose();
+            var launchException = new ProcessLaunchException(fileName, exception);
+            ProcessRunnerLog.CommandLaunchFailed(_logger, background ? LogLevel.Debug : LogLevel.Warning, command, launchException);
+            throw launchException;
+        }
+
+        return new LaunchedProcess(process, command, background);
+    }
+
     private void LogCompleted(string command, ProcessResult result, long elapsedMilliseconds, bool background)
     {
         // Routine background work stays at Debug even when it fails, so a persistently failing poll can't flood the
@@ -127,20 +157,15 @@ internal sealed class ProcessRunner : IProcessRunner
     }
 
     /// <inheritdoc />
-    public async Task<ProcessResult> RunAsync(string fileName, IReadOnlyList<string> arguments, string? standardInput = null, IReadOnlyDictionary<string, string>? environment = null, CancellationToken cancellationToken = default)
+    public Task<ProcessResult> RunAsync(string fileName, IReadOnlyList<string> arguments, string? standardInput = null, IReadOnlyDictionary<string, string>? environment = null, CancellationToken cancellationToken = default) =>
+        RunAsync(fileName, arguments, standardInput, environment, killProcessTree: true, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<ProcessResult> RunAsync(string fileName, IReadOnlyList<string> arguments, string? standardInput, IReadOnlyDictionary<string, string>? environment, bool killProcessTree, CancellationToken cancellationToken = default)
     {
-        var startInfo = CreateStartInfo(fileName, arguments, environment);
-        startInfo.RedirectStandardOutput = true;
-        startInfo.RedirectStandardError = true;
-        startInfo.RedirectStandardInput = standardInput is not null;
-
-        var command = FormatCommand(fileName, arguments);
-        var background = CommandLogScope.IsBackground;
-        ProcessRunnerLog.CommandStarted(_logger, LogLevel.Debug, command);
-
         var stopwatch = Stopwatch.StartNew();
-        using var process = new Process { StartInfo = startInfo };
-        StartProcess(process, fileName, command, background);
+        var (process, command, background) = Launch(fileName, arguments, environment, captureOutput: true, redirectInput: standardInput is not null, runToCompletion: true);
+        using var owned = process;
 
         if (standardInput is not null)
         {
@@ -176,10 +201,11 @@ internal sealed class ProcessRunner : IProcessRunner
         }
         catch (OperationCanceledException)
         {
-            // Cancellation must not leave the spawned tool (a JVM/emulator) running detached. Kill the whole
-            // tree, then observe the stream reads — which cancel too — so they don't surface later as
-            // unobserved-task exceptions, before propagating the cancellation.
-            process.KillTree();
+            // Cancellation must not leave the spawned tool (a JVM/emulator) running detached, so its whole tree is
+            // killed — unless the caller opted out because a descendant is a daemon that must survive (the adb server
+            // an adb client just started). Then observe the stream reads — which cancel too — so they don't surface
+            // later as unobserved-task exceptions, before propagating the cancellation.
+            process.Terminate(killProcessTree);
             await ObserveAsync(standardOutputTask);
             await ObserveAsync(standardErrorTask);
 
@@ -189,48 +215,12 @@ internal sealed class ProcessRunner : IProcessRunner
     }
 
     /// <inheritdoc />
-    public Process Start(string fileName, IReadOnlyList<string> arguments)
-    {
-        var startInfo = CreateStartInfo(fileName, arguments);
-
-        var command = FormatCommand(fileName, arguments);
-        var background = CommandLogScope.IsBackground;
-        ProcessRunnerLog.CommandStarted(_logger, background ? LogLevel.Debug : LogLevel.Information, command);
-
-        var process = new Process { StartInfo = startInfo };
-        StartProcess(process, fileName, command, background);
-
-        return process;
-    }
-
-    private void StartProcess(Process process, string fileName, string command, bool background)
-    {
-        try
-        {
-            process.Start();
-        }
-        catch (Win32Exception exception)
-        {
-            var launchException = new ProcessLaunchException(fileName, exception);
-            ProcessRunnerLog.CommandLaunchFailed(_logger, background ? LogLevel.Debug : LogLevel.Warning, command, launchException);
-            throw launchException;
-        }
-    }
+    public Process Start(string fileName, IReadOnlyList<string> arguments) =>
+        Launch(fileName, arguments, environment: null, captureOutput: false, redirectInput: false, runToCompletion: false).Process;
 
     /// <inheritdoc />
-    public IProcessSession StartSession(string fileName, IReadOnlyList<string> arguments, IReadOnlyDictionary<string, string>? environment = null)
-    {
-        var startInfo = CreateStartInfo(fileName, arguments, environment);
-        startInfo.RedirectStandardOutput = true;
-        startInfo.RedirectStandardError = true;
+    public IProcessSession StartSession(string fileName, IReadOnlyList<string> arguments, IReadOnlyDictionary<string, string>? environment = null) =>
+        new ProcessSession(Launch(fileName, arguments, environment, captureOutput: true, redirectInput: false, runToCompletion: false).Process);
 
-        var command = FormatCommand(fileName, arguments);
-        var background = CommandLogScope.IsBackground;
-        ProcessRunnerLog.CommandStarted(_logger, background ? LogLevel.Debug : LogLevel.Information, command);
-
-        var process = new Process { StartInfo = startInfo };
-        StartProcess(process, fileName, command, background);
-
-        return new ProcessSession(process);
-    }
+    private readonly record struct LaunchedProcess(Process Process, string Command, bool Background);
 }
