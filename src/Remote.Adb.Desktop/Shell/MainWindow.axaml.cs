@@ -8,8 +8,8 @@ namespace Remote.Adb.Desktop.Shell;
 
 public partial class MainWindow : Window
 {
-    private readonly NotificationService? _notificationService;
     private bool _diagnosticsRaised;
+    private readonly NotificationService? _notificationService;
     private bool _sinkAttached;
     private bool _windowFocused = true;
 

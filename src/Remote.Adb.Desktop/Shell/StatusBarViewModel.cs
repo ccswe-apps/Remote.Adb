@@ -50,12 +50,16 @@ public sealed partial class StatusBarViewModel : ViewModelBase, IDisposable
         _logStore.EntryAdded += OnEntryAdded;
         _tunnel.StatusChanged += OnTunnelStatusChanged;
 
-        // Seed from history so a fresh window shows what already ran (e.g. the tunnel auto-connect at startup).
-        var lastCommand = _logStore.Snapshot().LastOrDefault(IsCommandOutcome);
+        // Seed from history so a fresh window shows what already ran (e.g. the tunnel auto-connect at startup), and
+        // counts the problems logged before it existed — the log panel hasn't shown them either.
+        var snapshot = _logStore.Snapshot();
+        var lastCommand = snapshot.LastOrDefault(IsCommandOutcome);
         if (lastCommand is not null)
         {
             ShowCommand(lastCommand);
         }
+
+        _unseenProblemCount = snapshot.Count(IsProblem);
     }
 
     public bool HasLastCommand => LastCommand is not null;
@@ -91,6 +95,8 @@ public sealed partial class StatusBarViewModel : ViewModelBase, IDisposable
     private static bool IsCommandOutcome(LogEntry entry) =>
         entry.EventId.Id is LogEvents.CommandCompleted or LogEvents.CommandCancelled or LogEvents.CommandLaunchFailed;
 
+    private static bool IsProblem(LogEntry entry) => entry.Level >= LogLevel.Warning;
+
     private void OnEntryAdded(object? sender, LogEntry entry) => _uiDispatcher.Post(() => Record(entry));
 
     private void OnTunnelStatusChanged(object? sender, TunnelStatus status) => _uiDispatcher.Post(RefreshTunnel);
@@ -102,7 +108,7 @@ public sealed partial class StatusBarViewModel : ViewModelBase, IDisposable
             ShowCommand(entry);
         }
 
-        if (entry.Level >= LogLevel.Warning && !IsLogVisible)
+        if (IsProblem(entry) && !IsLogVisible)
         {
             UnseenProblemCount++;
         }

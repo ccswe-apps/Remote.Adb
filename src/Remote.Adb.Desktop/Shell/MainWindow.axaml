@@ -94,6 +94,7 @@
                         </Style>
                         <Style Selector="ListBoxItem" x:DataType="vm:NavigationDestination">
                             <Setter Property="ToolTip.Tip" Value="{Binding Label}"/>
+                            <Setter Property="AutomationProperties.Name" Value="{Binding Label}"/>
                         </Style>
                     </ListBox.Styles>
                     <ListBox.ItemTemplate>
