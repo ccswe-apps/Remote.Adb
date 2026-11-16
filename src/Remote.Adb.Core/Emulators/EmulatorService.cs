@@ -94,14 +94,18 @@ internal sealed class EmulatorService : IEmulatorService
     }
 
     /// <inheritdoc />
-    public async Task StopAsync(string serial, CancellationToken cancellationToken = default)
+    public async Task<AvdOperationResult> StopAsync(string serial, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Stopping emulator {Serial}", serial);
         var result = await _adb.RunAsync(["-s", serial, "emu", "kill"], cancellationToken: cancellationToken);
 
-        if (!result.Success)
+        if (result.Success)
         {
-            _logger.LogWarning("Stopping {Serial} exited with code {ExitCode}: {Error}", serial, result.ExitCode, result.StandardError);
+            return AvdOperationResult.Ok;
         }
+
+        var error = result.Describe("adb");
+        _logger.LogWarning("Stopping {Serial} exited with code {ExitCode}: {Error}", serial, result.ExitCode, error);
+        return AvdOperationResult.Fail(error);
     }
 }

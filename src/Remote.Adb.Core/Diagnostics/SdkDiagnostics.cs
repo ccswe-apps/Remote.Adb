@@ -6,10 +6,12 @@ namespace Remote.Adb.Core.Diagnostics;
 internal sealed class SdkDiagnostics : ISdkDiagnostics
 {
     private readonly IAndroidSdk _androidSdk;
+    private readonly IExecutableFinder _executableFinder;
 
-    public SdkDiagnostics(IAndroidSdk androidSdk)
+    public SdkDiagnostics(IAndroidSdk androidSdk, IExecutableFinder executableFinder)
     {
         _androidSdk = androidSdk;
+        _executableFinder = executableFinder;
     }
 
     /// <inheritdoc />
@@ -46,7 +48,7 @@ internal sealed class SdkDiagnostics : ISdkDiagnostics
                     DiagnosticSeverity.Error);
         }
 
-        if (ExecutableLocator.FindOnPath("java") is { } onPath)
+        if (_executableFinder.FindOnPath("java") is { } onPath)
         {
             return new ToolDiagnostic(
                 "JDK",
@@ -73,9 +75,6 @@ internal sealed class SdkDiagnostics : ISdkDiagnostics
         _ => null,
     };
 
-    private static bool HasJava(string javaHome)
-    {
-        var executable = OperatingSystem.IsWindows() ? "java.exe" : "java";
-        return File.Exists(Path.Combine(javaHome, "bin", executable));
-    }
+    private static bool HasJava(string javaHome) =>
+        File.Exists(Path.Combine(javaHome, "bin", ExecutableLocator.ExecutableName("java")));
 }

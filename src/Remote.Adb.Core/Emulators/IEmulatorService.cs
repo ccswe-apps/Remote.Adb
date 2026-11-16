@@ -1,6 +1,5 @@
 using JetBrains.Annotations;
 
-
 namespace Remote.Adb.Core.Emulators;
 
 /// <summary>
@@ -22,7 +21,8 @@ public interface IEmulatorService
     Task StartAsync(string avdName, bool coldBoot = false, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Stops the running emulator with the given adb serial (e.g. <c>emulator-5554</c>).
+    /// Stops the running emulator with the given adb serial (e.g. <c>emulator-5554</c>). The result reports
+    /// whether adb accepted the request and, if not, why (e.g. no such device).
     /// </summary>
-    Task StopAsync(string serial, CancellationToken cancellationToken = default);
+    Task<AvdOperationResult> StopAsync(string serial, CancellationToken cancellationToken = default);
 }

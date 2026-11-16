@@ -10,13 +10,22 @@ namespace Remote.Adb.Core.Emulators;
 /// </summary>
 internal static class DeviceDefinitionReader
 {
-    /// <summary>Reads and merges every available device-definition source under <paramref name="sdkRoot"/>.</summary>
-    public static IReadOnlyList<DeviceProfile> Read(string? sdkRoot)
+    /// <summary>
+    /// Reads and merges every available device-definition source under <paramref name="sdkRoot"/>, plus the
+    /// user's <c>devices.xml</c> found via <c>ANDROID_USER_HOME</c> / <c>ANDROID_SDK_HOME</c> / the profile.
+    /// </summary>
+    public static IReadOnlyList<DeviceProfile> Read(string? sdkRoot) => Read(sdkRoot, UserDevicesXmlPath());
+
+    /// <summary>
+    /// <see cref="Read(string?)"/> with an explicit user <c>devices.xml</c> path (<see langword="null"/> for none),
+    /// so tests don't depend on the machine's real one.
+    /// </summary>
+    internal static IReadOnlyList<DeviceProfile> Read(string? sdkRoot, string? userDevicesXmlPath)
     {
         var devices = new List<DeviceProfile>();
 
         // User-defined devices override the built-ins.
-        if (ReadFile(UserDevicesXmlPath()) is { } userXml)
+        if (ReadFile(userDevicesXmlPath) is { } userXml)
         {
             devices.AddRange(DeviceDefinitionParser.Parse(userXml));
         }

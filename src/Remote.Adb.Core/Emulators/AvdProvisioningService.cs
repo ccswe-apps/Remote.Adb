@@ -97,54 +97,48 @@ internal sealed class AvdProvisioningService : IAvdProvisioningService
 
         // Serialize the lazy build so the startup warm-up and a user-triggered call don't both run the
         // expensive scan; the second waiter sees the cache populated by the first.
-        await _devicesLock.WaitAsync(cancellationToken);
-        try
+        using var lease = await _devicesLock.LockAsync(cancellationToken);
+
+        if (_cachedDevices is not null && _cachedDevicesRoot == sdkRoot)
         {
-            if (_cachedDevices is not null && _cachedDevicesRoot == sdkRoot)
-            {
-                return _cachedDevices;
-            }
+            return _cachedDevices;
+        }
 
-            // Prefer the rich device definitions (with screen specs + form factor) read straight from the
-            // SDK — no JVM, and far more detail than avdmanager exposes.
-            var fromDefinitions = DeviceDefinitionReader.Read(sdkRoot);
-            if (fromDefinitions.Count > 0)
-            {
-                _logger.LogDebug("Loaded {Count} device definitions from the SDK device XML.", fromDefinitions.Count);
-                _cachedDevicesRoot = sdkRoot;
-                return _cachedDevices = fromDefinitions;
-            }
-
-            _logger.LogWarning("No SDK device definitions found; falling back to 'avdmanager list device'.");
-
-            var result = await _processRunner.RunAsync(
-                _androidSdk.AvdManagerPath,
-                ["list", "device"],
-                environment: ToolEnvironment(),
-                cancellationToken: cancellationToken);
-
-            var devices = AvdManagerOutputParser.ParseDevices(result.StandardOutput);
-
-            // avdmanager is a Java wrapper; without a JDK (Android Studio bundles one, the standalone
-            // cmdline-tools don't) it exits non-zero with the reason on stderr and no parseable stdout.
-            // Surface that instead of silently returning an empty list.
-            if (!result.Success || devices.Count == 0)
-            {
-                // Don't cache a failure — a later retry (e.g. after the user fixes JAVA_HOME) should re-run.
-                _logger.LogWarning(
-                    "avdmanager list device produced no device profiles (exit {ExitCode}). stderr: {Error}",
-                    result.ExitCode,
-                    string.IsNullOrWhiteSpace(result.StandardError) ? "(none)" : result.StandardError.Trim());
-                return devices;
-            }
-
+        // Prefer the rich device definitions (with screen specs + form factor) read straight from the
+        // SDK — no JVM, and far more detail than avdmanager exposes.
+        var fromDefinitions = DeviceDefinitionReader.Read(sdkRoot);
+        if (fromDefinitions.Count > 0)
+        {
+            _logger.LogDebug("Loaded {Count} device definitions from the SDK device XML.", fromDefinitions.Count);
             _cachedDevicesRoot = sdkRoot;
-            return _cachedDevices = devices;
+            return _cachedDevices = fromDefinitions;
         }
-        finally
+
+        _logger.LogWarning("No SDK device definitions found; falling back to 'avdmanager list device'.");
+
+        var result = await _processRunner.RunAsync(
+            _androidSdk.AvdManagerPath,
+            ["list", "device"],
+            environment: ToolEnvironment(),
+            cancellationToken: cancellationToken);
+
+        var devices = AvdManagerOutputParser.ParseDevices(result.StandardOutput);
+
+        // avdmanager is a Java wrapper; without a JDK (Android Studio bundles one, the standalone
+        // cmdline-tools don't) it exits non-zero with the reason on stderr and no parseable stdout.
+        // Surface that instead of silently returning an empty list.
+        if (!result.Success || devices.Count == 0)
         {
-            _devicesLock.Release();
+            // Don't cache a failure — a later retry (e.g. after the user fixes JAVA_HOME) should re-run.
+            _logger.LogWarning(
+                "avdmanager list device produced no device profiles (exit {ExitCode}). stderr: {Error}",
+                result.ExitCode,
+                string.IsNullOrWhiteSpace(result.StandardError) ? "(none)" : result.StandardError.Trim());
+            return devices;
         }
+
+        _cachedDevicesRoot = sdkRoot;
+        return _cachedDevices = devices;
     }
 
     // avdmanager/sdkmanager are JVM wrappers; when a JDK is resolved (the override, else JAVA_HOME) pass it

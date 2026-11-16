@@ -5,59 +5,50 @@ using Remote.Adb.Core.Diagnostics;
 
 namespace Remote.Adb.Core.UnitTests.Diagnostics;
 
-// Controls whether java is on PATH, so it must not run alongside other fixtures.
-[NonParallelizable]
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public class SdkDiagnosticsTests
 {
-    private string _directory = string.Empty;
-    private string? _previousPath;
+    private protected string TempDirectory = string.Empty;
+    private protected Mock<IExecutableFinder> Finder = null!;
 
     [SetUp]
     public void SetUp()
     {
-        _previousPath = Environment.GetEnvironmentVariable("PATH");
-        _directory = Path.Combine(Path.GetTempPath(), "remote-adb-diag-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_directory);
-        // Isolate the java probe: PATH contains only our temp dir (no java) unless a test adds one.
-        Environment.SetEnvironmentVariable("PATH", _directory);
+        TempDirectory = Path.Combine(Path.GetTempPath(), "remote-adb-diag-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(TempDirectory);
+
+        // No java on PATH unless a test says otherwise.
+        Finder = new Mock<IExecutableFinder>();
     }
 
     [TearDown]
     public void TearDown()
     {
-        Environment.SetEnvironmentVariable("PATH", _previousPath);
-
-        if (Directory.Exists(_directory))
+        if (Directory.Exists(TempDirectory))
         {
-            Directory.Delete(_directory, true);
+            Directory.Delete(TempDirectory, true);
         }
     }
 
-    private static SdkDiagnostics CreateDiagnostics(SdkRootSource source = SdkRootSource.Override, string? sdkRoot = "/sdk", string? javaHome = null)
+    private protected SdkDiagnostics CreateDiagnostics(SdkRootSource source = SdkRootSource.Override, string? sdkRoot = "/sdk", string? javaHome = null)
     {
         var sdk = new Mock<IAndroidSdk>();
         sdk.SetupGet(s => s.SdkRootSource).Returns(source);
         sdk.SetupGet(s => s.SdkRoot).Returns(sdkRoot);
         sdk.SetupGet(s => s.JavaHome).Returns(javaHome);
 
-        return new SdkDiagnostics(sdk.Object);
+        return new SdkDiagnostics(sdk.Object, Finder.Object);
     }
 
-    private string CreateFakeJdk()
+    private protected string CreateFakeJdk()
     {
-        var home = Path.Combine(_directory, "jdk-" + Guid.NewGuid().ToString("N"));
-        var executable = OperatingSystem.IsWindows() ? "java.exe" : "java";
+        var home = Path.Combine(TempDirectory, "jdk-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(home, "bin"));
-        File.WriteAllText(Path.Combine(home, "bin", executable), string.Empty);
+        File.WriteAllText(Path.Combine(home, "bin", ExecutableLocator.ExecutableName("java")), string.Empty);
         return home;
     }
 
-    private void PutJavaOnPath()
-    {
-        var executable = OperatingSystem.IsWindows() ? "java.exe" : "java";
-        File.WriteAllText(Path.Combine(_directory, executable), string.Empty);
-    }
+    private protected void PutJavaOnPath() => Finder.Setup(finder => finder.FindOnPath("java")).Returns("/usr/bin/java");
 
     public class When_Evaluate_Is_Called : SdkDiagnosticsTests
     {
@@ -68,8 +59,11 @@ public class SdkDiagnosticsTests
 
             var issue = diagnostics.Evaluate().Single();
 
-            Assert.That(issue.Title, Is.EqualTo("Android SDK"));
-            Assert.That(issue.Severity, Is.EqualTo(DiagnosticSeverity.Error));
+            Assert.Multiple(() =>
+            {
+                Assert.That(issue.Title, Is.EqualTo("Android SDK"));
+                Assert.That(issue.Severity, Is.EqualTo(DiagnosticSeverity.Error));
+            });
         }
 
         [Test]
@@ -79,14 +73,17 @@ public class SdkDiagnosticsTests
 
             var issue = diagnostics.Evaluate().Single();
 
-            Assert.That(issue.Title, Is.EqualTo("JDK"));
-            Assert.That(issue.Severity, Is.EqualTo(DiagnosticSeverity.Error));
+            Assert.Multiple(() =>
+            {
+                Assert.That(issue.Title, Is.EqualTo("JDK"));
+                Assert.That(issue.Severity, Is.EqualTo(DiagnosticSeverity.Error));
+            });
         }
 
         [Test]
         public void It_reports_an_error_when_java_home_is_set_but_has_no_java()
         {
-            var brokenJdk = Path.Combine(_directory, "broken-jdk");
+            var brokenJdk = Path.Combine(TempDirectory, "broken-jdk");
             Directory.CreateDirectory(brokenJdk);
             PutJavaOnPath();
 
@@ -94,8 +91,11 @@ public class SdkDiagnosticsTests
 
             var issue = diagnostics.Evaluate().Single();
 
-            Assert.That(issue.Title, Is.EqualTo("JDK"));
-            Assert.That(issue.Severity, Is.EqualTo(DiagnosticSeverity.Error));
+            Assert.Multiple(() =>
+            {
+                Assert.That(issue.Title, Is.EqualTo("JDK"));
+                Assert.That(issue.Severity, Is.EqualTo(DiagnosticSeverity.Error));
+            });
         }
 
         [Test]
@@ -114,8 +114,12 @@ public class SdkDiagnosticsTests
 
             var issue = diagnostics.Evaluate().Single();
 
-            Assert.That(issue.Title, Is.EqualTo("JDK"));
-            Assert.That(issue.Severity, Is.EqualTo(DiagnosticSeverity.Warning));
+            Assert.Multiple(() =>
+            {
+                Assert.That(issue.Title, Is.EqualTo("JDK"));
+                Assert.That(issue.Severity, Is.EqualTo(DiagnosticSeverity.Warning));
+                Assert.That(issue.Message, Does.Contain("/usr/bin/java"));
+            });
         }
 
         [Test]
@@ -125,8 +129,11 @@ public class SdkDiagnosticsTests
 
             var issue = diagnostics.Evaluate().Single();
 
-            Assert.That(issue.Title, Is.EqualTo("Android SDK"));
-            Assert.That(issue.Severity, Is.EqualTo(DiagnosticSeverity.Warning));
+            Assert.Multiple(() =>
+            {
+                Assert.That(issue.Title, Is.EqualTo("Android SDK"));
+                Assert.That(issue.Severity, Is.EqualTo(DiagnosticSeverity.Warning));
+            });
         }
     }
 }
