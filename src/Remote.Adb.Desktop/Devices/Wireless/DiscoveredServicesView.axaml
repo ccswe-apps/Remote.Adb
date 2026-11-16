@@ -1,0 +1,46 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:wl="using:Remote.Adb.Desktop.Devices.Wireless"
+             xmlns:wireless="using:Remote.Adb.Core.Adb.Wireless"
+             x:Class="Remote.Adb.Desktop.Devices.Wireless.DiscoveredServicesView"
+             x:Name="Root">
+
+    <StackPanel Spacing="6">
+        <TextBlock Classes="BodySmall" Foreground="{DynamicResource OnSurfaceVariant}"
+                   Text="{Binding #Root.Title}"/>
+
+        <!-- Discovery unavailable: say why, rather than show a list that will never fill. -->
+        <TextBlock Classes="BodySmall" Foreground="{DynamicResource OnSurfaceVariant}" TextWrapping="Wrap"
+                   IsVisible="{Binding #Root.IsUnavailable}"
+                   Text="Discovery isn't available. This computer must be on the same network as the device, with UDP port 5353 (mDNS) allowed for adb through the firewall."/>
+
+        <Panel IsVisible="{Binding !#Root.IsUnavailable}">
+            <!-- Bounded so a long list scrolls instead of growing the size-to-content dialog; the inset is the
+                 items' Margin, not the ScrollViewer's padding. -->
+            <ScrollViewer MaxHeight="132">
+                <ItemsControl x:Name="List" ItemsSource="{Binding #Root.Services}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="wireless:MdnsService">
+                            <Button Classes="Text" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                    Command="{Binding #Root.SelectCommand}" CommandParameter="{Binding}"
+                                    ToolTip.Tip="{Binding Instance}">
+                                <StackPanel Orientation="Horizontal" Spacing="12">
+                                    <PathIcon Data="{StaticResource IconWifiHigh}" Width="16" Height="16"/>
+                                    <TextBlock Text="{Binding Address}" FontFamily="{DynamicResource CodeFontFamily}"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Instance}" Classes="BodySmall" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource OnSurfaceVariant}" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <TextBlock Classes="BodySmall" Foreground="{DynamicResource OnSurfaceVariant}" TextWrapping="Wrap"
+                       Text="{Binding #Root.EmptyText}"
+                       IsVisible="{Binding !#List.ItemCount}"/>
+        </Panel>
+    </StackPanel>
+
+</UserControl>

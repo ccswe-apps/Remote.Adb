@@ -20,6 +20,12 @@ public interface IWirelessAdbService
     Task<IReadOnlyList<MdnsService>> DiscoverAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Whether the local adb server can discover devices over mDNS (<c>adb mdns check</c>) — needed for the discovered-device
+    /// lists and QR pairing.
+    /// </summary>
+    Task<bool> IsDiscoveryAvailableAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Pairs with a device whose Wireless debugging "Pair device with pairing code" dialog shows
     /// <paramref name="pairingAddress"/> and <paramref name="code"/>, then waits briefly for it to connect —
     /// connecting explicitly via its mDNS-advertised address if adb didn't do so automatically. The code is passed on

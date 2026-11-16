@@ -33,8 +33,8 @@ while it's there.
    Connections go through your local `adb` server, so they're visible on the remote host through the tunnel,
    and addresses you connect by hand are reconnected automatically after `adb` restarts.
 
-> **Status:** early but usable. The SSH tunnel, emulator management, and wireless connect/pair are working;
-> discovering devices on the network, QR-code pairing, and switching a USB device to Wi-Fi are next. See
+> **Status:** early but usable. The SSH tunnel, emulator management, and wireless connect/pair/discovery are
+> working; QR-code pairing and switching a USB device to Wi-Fi are next. See
 > [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Requirements
@@ -91,6 +91,9 @@ dotnet run --project src/Remote.Adb.Console -- tunnel
     it connects automatically (if it doesn't, the dialog asks for the IP address & port shown on the Wireless
     debugging screen). Or *Connect* directly to a paired device or one in `adb tcpip` mode by `ip[:port]` — those
     addresses are remembered and reconnected whenever the local `adb` server restarts or the tunnel comes back up.
+    Each tab also lists the matching devices found on your network (over mDNS) — pick one instead of typing its
+    address. Discovery needs this computer on the phone's network with UDP port 5353 allowed for `adb` through the
+    firewall; the dialog says so when it isn't available.
   - A wireless device's **⋮** menu has **Disconnect**, which also stops it being reconnected.
 - **Status bar & log** — the strip along the bottom of the window shows the tunnel's state, the last command the
   app ran (with its exit status and duration), and a badge counting warnings/errors you haven't seen. Click it to

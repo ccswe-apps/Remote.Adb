@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using Moq;
 using Remote.Adb.Core.Adb.Wireless;
 using Remote.Adb.Desktop.Devices.Wireless;
+using Remote.Adb.Desktop.UnitTests.Fakes;
 
 namespace Remote.Adb.Desktop.UnitTests.Devices.Wireless;
 
@@ -9,18 +10,22 @@ namespace Remote.Adb.Desktop.UnitTests.Devices.Wireless;
 public class AddWirelessDeviceViewModelTests
 {
     protected bool? Closed;
+    protected FakeTimerFactory TimerFactory = null!;
     protected Mock<IWirelessAdbService> Wireless = null!;
 
     [SetUp]
     public void SetUp()
     {
         Closed = null;
+        TimerFactory = new FakeTimerFactory();
         Wireless = new Mock<IWirelessAdbService>();
+        Wireless.Setup(wireless => wireless.IsDiscoveryAvailableAsync(It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        Wireless.Setup(wireless => wireless.DiscoverAsync(It.IsAny<CancellationToken>())).ReturnsAsync(Array.Empty<MdnsService>());
     }
 
     protected AddWirelessDeviceViewModel CreateViewModel()
     {
-        var viewModel = new AddWirelessDeviceViewModel(Wireless.Object);
+        var viewModel = new AddWirelessDeviceViewModel(Wireless.Object, TimerFactory);
         viewModel.CloseRequested += result => Closed = result;
         return viewModel;
     }
@@ -128,6 +133,64 @@ public class AddWirelessDeviceViewModelTests
                 Assert.That(Closed, Is.Null);
                 Assert.That(viewModel.Connect.ErrorMessage, Does.Contain("Allow debugging"));
             });
+        }
+    }
+
+    public class When_The_Dialog_Opens_And_Closes : AddWirelessDeviceViewModelTests
+    {
+        [Test]
+        public void It_polls_discovery_only_while_open()
+        {
+            var viewModel = CreateViewModel();
+
+            viewModel.OnOpened();
+            var pollingWhileOpen = TimerFactory.Timer.IsRunning;
+            viewModel.OnClosed();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(pollingWhileOpen, Is.True);
+                Assert.That(TimerFactory.Timer.IsRunning, Is.False);
+            });
+        }
+    }
+
+    public class When_A_Discovered_Service_Is_Picked : AddWirelessDeviceViewModelTests
+    {
+        [Test]
+        public void It_fills_in_the_pairing_address_for_a_pairing_service()
+        {
+            var viewModel = CreateViewModel();
+
+            viewModel.SelectPairingServiceCommand.Execute(new MdnsService("adb-x", MdnsServiceType.Pairing, "192.168.1.20", 37123));
+
+            Assert.That(viewModel.Pair.PairingAddress, Is.EqualTo("192.168.1.20:37123"));
+        }
+
+        [TestCase(MdnsServiceType.Connect, false)]
+        [TestCase(MdnsServiceType.Legacy, true)]
+        public async Task It_connects_and_remembers_only_a_stable_legacy_address(MdnsServiceType type, bool remember)
+        {
+            Wireless
+                .Setup(wireless => wireless.ConnectAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new WirelessConnectResult(WirelessConnectOutcome.Connected, "connected"));
+            var viewModel = CreateViewModel();
+
+            await viewModel.ConnectToServiceCommand.ExecuteAsync(new MdnsService("adb-x", type, "192.168.1.20", 41235));
+
+            Wireless.Verify(wireless => wireless.ConnectAsync("192.168.1.20:41235", remember, It.IsAny<CancellationToken>()), Times.Once);
+            Assert.That(Closed, Is.True);
+        }
+
+        [Test]
+        public void It_remembers_an_address_typed_by_hand_again()
+        {
+            var viewModel = CreateViewModel();
+            viewModel.Connect.Remember = false;
+
+            viewModel.Connect.Address = "192.168.1.40:5555";
+
+            Assert.That(viewModel.Connect.Remember, Is.True);
         }
     }
 
