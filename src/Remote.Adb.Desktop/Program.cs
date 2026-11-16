@@ -1,5 +1,6 @@
 using Avalonia;
 using CCSWE.Avalonia.Hosting;
+using Remote.Adb.Core.Logging;
 
 namespace Remote.Adb.Desktop;
 
@@ -12,6 +13,8 @@ sealed class Program
     public static void Main(string[] args)
     {
         var builder = DesktopApplication.CreateBuilder<App>(args, ConfigureOptions);
+        // Capture app logging (including every external command run) for the in-app log panel.
+        builder.Logging.AddRemoteAdbLogStore();
         builder.Services.AddRemoteAdbDesktop();
 
 #if DEBUG

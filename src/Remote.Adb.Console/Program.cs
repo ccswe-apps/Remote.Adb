@@ -6,8 +6,13 @@ using Remote.Adb.Core.Emulators;
 using Remote.Adb.Core.Settings;
 using Remote.Adb.Core.Tunnel;
 
+// --verbose (anywhere on the command line) echoes every tool run and its output; strip it before dispatch.
+const string VerboseFlag = "--verbose";
+var verbose = args.Contains(VerboseFlag);
+args = args.Where(argument => argument != VerboseFlag).ToArray();
+
 var services = new ServiceCollection();
-services.AddLogging(builder => builder.AddSimpleConsole(options => options.SingleLine = true).SetMinimumLevel(LogLevel.Warning));
+services.AddLogging(builder => builder.AddSimpleConsole(options => options.SingleLine = true).SetMinimumLevel(verbose ? LogLevel.Debug : LogLevel.Warning));
 services.AddRemoteAdbCore();
 
 using var provider = services.BuildServiceProvider();
@@ -379,7 +384,7 @@ static void PrintUsage()
 {
     Console.WriteLine("Remote.Adb console");
     Console.WriteLine();
-    Console.WriteLine("Usage:");
+    Console.WriteLine("Usage (add --verbose to any command to log the tools it runs):");
     Console.WriteLine("  emulator list                 List available AVDs and their running state");
     Console.WriteLine("  emulator info <avd-name>      Show the full configuration of the given AVD");
     Console.WriteLine("  emulator edit <avd-name> …    Set --<key> <value> pairs (bare --<key> clears) and persist");

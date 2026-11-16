@@ -16,6 +16,12 @@ public interface ISettingsService
     /// <summary>Override for the Java home (JDK) directory, or <see langword="null"/> to use <c>JAVA_HOME</c>/PATH.</summary>
     string? JavaHome { get; set; }
 
+    /// <summary>The height, in pixels, of the desktop app's docked log panel when it's open.</summary>
+    double LogPanelHeight { get; set; }
+
+    /// <summary>Whether the desktop app's docked log panel is open.</summary>
+    bool LogPanelOpen { get; set; }
+
     /// <summary>Override for the Android SDK root, or <see langword="null"/> to use env-var/default resolution.</summary>
     string? SdkRoot { get; set; }
 

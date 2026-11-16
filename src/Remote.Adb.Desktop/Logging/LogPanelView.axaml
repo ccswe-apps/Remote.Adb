@@ -1,0 +1,38 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:log="using:Remote.Adb.Desktop.Logging"
+             x:Class="Remote.Adb.Desktop.Logging.LogPanelView"
+             x:DataType="log:LogPanelViewModel">
+
+    <!-- A pinned toolbar over the scrolling entry list. The * row bounds the list's viewport; the inset lives on the
+         items panel's Margin (not the ListBox's), so the scrollbar sits against the panel edge and the last entry
+         stays reachable. -->
+    <Border Background="{DynamicResource SurfaceContainerLow}"
+            BorderBrush="{DynamicResource OutlineVariant}" BorderThickness="0,1,0,0">
+        <Grid RowDefinitions="Auto,*">
+            <log:LogToolbarView Grid.Row="0"/>
+
+            <ListBox x:Name="EntryList" Grid.Row="1" ItemsSource="{Binding Entries}"
+                     Background="Transparent" SelectionMode="Single">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel Margin="16,0,16,8"/>
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.Styles>
+                    <!-- Dense, console-like rows rather than the theme's roomy list items. -->
+                    <Style Selector="ListBoxItem">
+                        <Setter Property="Padding" Value="0,1"/>
+                        <Setter Property="MinHeight" Value="0"/>
+                    </Style>
+                </ListBox.Styles>
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="log:LogEntryViewModel">
+                        <log:LogEntryView/>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Grid>
+    </Border>
+
+</UserControl>

@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using Remote.Adb.Core.Adb;
 using Remote.Adb.Core.Common;
 using Remote.Adb.Core.Emulators;
+using Remote.Adb.Core.Logging;
 using Remote.Adb.Desktop.Common;
 using Remote.Adb.Desktop.Common.Notifications;
 using Remote.Adb.Desktop.Common.Threading;
@@ -235,6 +236,9 @@ public partial class DevicesViewModel : AutoRefreshingListViewModel
     private async Task WaitUntilRunningAsync(DeviceRowViewModel device)
     {
         var deadline = DateTime.UtcNow + StartTimeout;
+
+        // Polling for the launch to settle is routine; keep its re-lists out of the Information-level log.
+        using var scope = CommandLogScope.Background();
 
         while (DateTime.UtcNow < deadline)
         {

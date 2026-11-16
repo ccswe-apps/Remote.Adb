@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Remote.Adb.Desktop.Common.Notifications;
 
@@ -24,6 +25,9 @@ public partial class MainWindow : Window
 
         Activated += OnWindowActivated;
         Deactivated += OnWindowDeactivated;
+
+        // The row height tracks the drag live through its binding; persist it only once the drag ends.
+        LogPanelSplitter.DragCompleted += OnLogPanelSplitterDragCompleted;
     }
 
     protected override void OnLoaded(RoutedEventArgs e)
@@ -43,6 +47,11 @@ public partial class MainWindow : Window
             _diagnosticsRaised = true;
             (DataContext as MainWindowViewModel)?.RaiseStartupDiagnostics();
         }
+    }
+
+    private void OnLogPanelSplitterDragCompleted(object? sender, VectorEventArgs e)
+    {
+        (DataContext as MainWindowViewModel)?.CommitLogPanelHeight();
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)

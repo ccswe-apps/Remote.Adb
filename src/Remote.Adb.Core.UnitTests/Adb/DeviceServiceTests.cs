@@ -19,7 +19,7 @@ public class DeviceServiceTests
 
         detailsResolver ??= new Mock<IDeviceDetailsResolver>();
 
-        return new DeviceService(processRunner.Object, sdk.Object, detailsResolver.Object, new LoggerFake<DeviceService>());
+        return new DeviceService(processRunner.Object, sdk.Object, detailsResolver.Object);
     }
 
     private static Mock<IProcessRunner> ProcessRunnerReturning(string standardOutput)

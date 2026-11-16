@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Remote.Adb.Desktop.Shell"
         xmlns:conv="using:Remote.Adb.Desktop.Common.Converters"
+        xmlns:log="using:Remote.Adb.Desktop.Logging"
         xmlns:notifications="using:Avalonia.Controls.Notifications"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -17,6 +18,7 @@
 
     <Window.Resources>
         <conv:ResourceKeyToGeometryConverter x:Key="ResourceKeyToGeometry"/>
+        <vm:DoubleToGridLengthConverter x:Key="DoubleToGridLength"/>
     </Window.Resources>
 
     <Window.Styles>
@@ -78,31 +80,54 @@
             </Panel>
         </DrawerPage.Drawer>
 
-        <!-- Pinned footer: collapse/expand the navigation. -->
+        <!-- Pinned footer: show/hide the log panel, collapse/expand the navigation. Stacked vertically so both fit
+             the 80px rail. -->
         <DrawerPage.DrawerFooter>
             <Border Padding="12,16" BorderBrush="{DynamicResource OutlineVariant}" BorderThickness="0,1,0,0">
-                <Button Classes="Icon" HorizontalAlignment="Center" Command="{Binding ToggleRailCommand}"
-                        ToolTip.Tip="Collapse / expand navigation">
-                    <PathIcon Data="{StaticResource IconCaretLeft}" Width="16" Height="16"
-                              Classes.collapsed="{Binding IsRail}" RenderTransformOrigin="50%,50%"/>
-                </Button>
+                <StackPanel Spacing="8" HorizontalAlignment="Center">
+                    <Button Classes="Icon" Command="{Binding ToggleLogPanelCommand}" ToolTip.Tip="Show / hide log"
+                            AutomationProperties.Name="Show / hide log">
+                        <PathIcon Data="{StaticResource IconTerminalWindow}" Width="16" Height="16"/>
+                    </Button>
+                    <Button Classes="Icon" Command="{Binding ToggleRailCommand}" ToolTip.Tip="Collapse / expand navigation"
+                            AutomationProperties.Name="Collapse / expand navigation">
+                        <PathIcon Data="{StaticResource IconCaretLeft}" Width="16" Height="16"
+                                  Classes.collapsed="{Binding IsRail}" RenderTransformOrigin="50%,50%"/>
+                    </Button>
+                </StackPanel>
             </Border>
         </DrawerPage.DrawerFooter>
 
-        <!-- Routed content. DrawerPage now bakes the pane↔content divider into its own
+        <!-- Routed content over the docked log panel. DrawerPage bakes the pane↔content divider into its own
              template, so there's no consumer-side border here.
-             DrawerPage is a Page: its Content slot does NOT inherit the window's
-             DataContext (the drawer/header/footer chrome slots do), so route it in
-             explicitly via the Window ancestor — otherwise CurrentScreen never
-             resolves and the content area renders empty. -->
-        <ContentControl Content="{Binding CurrentScreen}"
-                        DataContext="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext)}"/>
+             DrawerPage is a Page: its Content slot does NOT inherit the window's DataContext (the
+             drawer/header/footer chrome slots do), so route it in explicitly via the Window ancestor on this grid —
+             every child below inherits it. The * row bounds the page's scroll viewers; the panel row's height is
+             the VM's (zero while closed), resized by the splitter and persisted when a drag completes. -->
+        <Grid DataContext="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext)}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" MinHeight="160"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="{Binding LogPanelRowHeight, Mode=TwoWay, Converter={StaticResource DoubleToGridLength}}"/>
+            </Grid.RowDefinitions>
+
+            <ContentControl Grid.Row="0" Content="{Binding CurrentScreen}"/>
+
+            <!-- Toasts float over the page, above the log panel rather than covering it. Declared in the tree (not
+                 constructed in code) so it's laid out before the first Show. -->
+            <notifications:WindowNotificationManager Grid.Row="0" x:Name="NotificationManager"
+                                                     Position="BottomRight" MaxItems="5"/>
+
+            <GridSplitter Grid.Row="1" x:Name="LogPanelSplitter" ResizeDirection="Rows" Height="4"
+                          Background="Transparent" IsVisible="{Binding IsLogPanelOpen}"/>
+
+            <!-- Visibility is bound on a wrapper: the panel's own DataContext is the LogPanelViewModel. -->
+            <Panel Grid.Row="2" IsVisible="{Binding IsLogPanelOpen}">
+                <log:LogPanelView DataContext="{Binding LogPanel}"/>
+            </Panel>
+        </Grid>
 
     </DrawerPage>
-
-    <!-- Declared in the tree (not constructed in code) so it's laid out before the first Show. -->
-    <notifications:WindowNotificationManager x:Name="NotificationManager"
-                                             Position="BottomRight" MaxItems="5"/>
 
     </Panel>
 

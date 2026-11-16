@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using Remote.Adb.Core.Common;
 
 namespace Remote.Adb.Core.Adb;
@@ -8,27 +7,20 @@ public sealed class DeviceService : IDeviceService
 {
     private readonly IAndroidSdk _androidSdk;
     private readonly IDeviceDetailsResolver _detailsResolver;
-    private readonly ILogger<DeviceService> _logger;
     private readonly IProcessRunner _processRunner;
 
-    public DeviceService(IProcessRunner processRunner, IAndroidSdk androidSdk, IDeviceDetailsResolver detailsResolver, ILogger<DeviceService> logger)
+    public DeviceService(IProcessRunner processRunner, IAndroidSdk androidSdk, IDeviceDetailsResolver detailsResolver)
     {
         _processRunner = processRunner;
         _androidSdk = androidSdk;
         _detailsResolver = detailsResolver;
-        _logger = logger;
     }
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<AdbDevice>> ListAsync(CancellationToken cancellationToken = default)
     {
+        // A non-zero exit is already logged by the process runner, with its exit code and output.
         var result = await _processRunner.RunAsync(_androidSdk.AdbPath, ["devices", "-l"], cancellationToken: cancellationToken);
-
-        if (!result.Success)
-        {
-            _logger.LogWarning("adb devices -l exited with code {ExitCode}: {Error}", result.ExitCode, result.StandardError);
-        }
-
         var devices = AdbOutputParser.ParseDeviceList(result.StandardOutput);
 
         // Enrich online devices with friendly details — cached by serial, so this is one getprop per device once.

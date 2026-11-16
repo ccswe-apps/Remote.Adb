@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.Input;
 using Remote.Adb.Core.Common;
+using Remote.Adb.Core.Logging;
 using Remote.Adb.Desktop.Common.Notifications;
 using Remote.Adb.Desktop.Common.Threading;
 
@@ -44,6 +45,9 @@ public abstract partial class AutoRefreshingListViewModel : ViewModelBase, IActi
     public async Task OnActivatedAsync()
     {
         _refreshTimer.Start();
+
+        // Automatic (navigation / focus return), not user-initiated: log its commands as routine background work.
+        using var scope = CommandLogScope.Background();
         await RefreshAsync(notifyOnError: true);
     }
 
@@ -97,6 +101,8 @@ public abstract partial class AutoRefreshingListViewModel : ViewModelBase, IActi
             return;
         }
 
+        // The scope is captured by RefreshAsync's async flow at its first await, so disposing it on return is safe.
+        using var scope = CommandLogScope.Background();
         _ = RefreshAsync(notifyOnError: false);
     }
 

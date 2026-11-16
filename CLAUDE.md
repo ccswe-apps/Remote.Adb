@@ -74,6 +74,8 @@ Projects in `src/Remote.Adb.slnx`:
 
 Both front-ends compose a `Microsoft.Extensions.DependencyInjection` service provider and call `AddRemoteAdbCore()` to register the shared services. Keep logic in Core; the GUI and CLI are thin shells over it.
 
+**Logging.** Code logs through `ILogger<T>` — there is no separate logging API. The desktop host adds `builder.Logging.AddRemoteAdbLogStore()`, which captures `Remote.Adb` logging (Information and up) into the in-memory `ILogStore` (Core `Logging/`) that the docked log panel (Desktop `Logging/`) displays; the console logs to stdout (`--verbose` for Debug). `ProcessRunner` logs every external command it runs — completion with exit code and duration, plus its output — so callers don't need to log a tool's failure themselves. Wrap routine, automatic work (list polling, launch waits) in `CommandLogScope.Background()` so its commands log at Debug and stay out of the panel.
+
 The desktop app follows Avalonia's **MVVM** conventions:
 
 - `Program.Main` builds a **.NET Generic Host** via `DesktopApplication.CreateBuilder<App>` (from the **CCSWE.Avalonia.Hosting** package), registers services, and runs it — the host owns DI and the classic desktop lifetime. `BuildAvaloniaApp()` mirrors the same Avalonia configuration (minus the host) for the XAML previewer; `WithDeveloperTools()` is added only in `DEBUG`. Fonts/type scale come from the CCSWE.Avalonia.Material theme, not a base theme.
