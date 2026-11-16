@@ -144,6 +144,45 @@ public class WirelessOutputParserTests
         }
     }
 
+    public class When_ParseIpAddrInet_Is_Called : WirelessOutputParserTests
+    {
+        [Test]
+        public void It_reads_the_address_without_the_prefix_length()
+        {
+            const string output =
+                "30: wlan0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 3000\n" +
+                "    inet 192.168.1.20/24 brd 192.168.1.255 scope global wlan0\n" +
+                "       valid_lft forever preferred_lft forever\n";
+
+            Assert.That(WirelessOutputParser.ParseIpAddrInet(output), Is.EqualTo("192.168.1.20"));
+        }
+
+        [Test]
+        public void It_returns_null_when_the_interface_has_no_address()
+        {
+            Assert.That(WirelessOutputParser.ParseIpAddrInet("30: wlan0: <NO-CARRIER,BROADCAST> mtu 1500 state DOWN\n"), Is.Null);
+        }
+    }
+
+    public class When_ParseTcpip_Is_Called : WirelessOutputParserTests
+    {
+        [Test]
+        public void It_succeeds_when_adbd_restarts_in_tcp_mode()
+        {
+            var result = WirelessOutputParser.ParseTcpip(Output("restarting in TCP mode port: 5555\n"));
+
+            Assert.That(result, Is.EqualTo(new WirelessResult(true, "restarting in TCP mode port: 5555")));
+        }
+
+        [Test]
+        public void It_fails_with_adbs_error()
+        {
+            var result = WirelessOutputParser.ParseTcpip(Output("", exitCode: 1, stderr: "error: device unauthorized.\n"));
+
+            Assert.That(result, Is.EqualTo(new WirelessResult(false, "error: device unauthorized.")));
+        }
+    }
+
     public class When_ParseIpRouteSource_Is_Called : WirelessOutputParserTests
     {
         [Test]
@@ -157,9 +196,13 @@ public class WirelessOutputParserTests
         }
 
         [Test]
-        public void It_falls_back_to_the_first_route_with_a_source()
+        public void It_ignores_mobile_data_and_vpn_routes()
         {
-            Assert.That(WirelessOutputParser.ParseIpRouteSource("10.0.0.0/8 dev eth0 src 10.0.0.5\n"), Is.EqualTo("10.0.0.5"));
+            const string output =
+                "10.20.0.0/16 dev rmnet_data0 proto kernel scope link src 10.20.30.40\n" +
+                "10.8.0.0/24 dev tun0 proto kernel scope link src 10.8.0.2\n";
+
+            Assert.That(WirelessOutputParser.ParseIpRouteSource(output), Is.Null);
         }
 
         [Test]

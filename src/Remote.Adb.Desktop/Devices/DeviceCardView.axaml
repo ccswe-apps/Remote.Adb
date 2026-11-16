@@ -81,14 +81,22 @@
                 </Panel>
             </Panel>
 
-            <!-- Overflow column: AVDs (cold boot, delete) and wireless devices (disconnect). On USB rows the column
-                 is empty but still reserves the shared width, so the primary-action column stays aligned.
+            <!-- Overflow column: AVDs (cold boot, delete), wireless devices (disconnect), and online USB devices (switch to
+                 Wi-Fi debugging). On other rows the column is empty but still reserves the shared width, so the
+                 primary-action column stays aligned.
                  Flyout items can't reach the ItemsControl ancestor, so they bind to the commands the row exposes
                  (which the flyout inherits as its DataContext). -->
             <Button Grid.Column="3" Classes="Icon" Margin="4,0,0,0" VerticalAlignment="Center"
                     IsVisible="{Binding HasOverflow}" ToolTip.Tip="More actions">
                 <Button.Flyout>
                     <MenuFlyout>
+                        <MenuItem Header="Enable Wi-Fi debugging" IsVisible="{Binding IsUsb}" IsEnabled="{Binding !IsBusy}"
+                                  Command="{Binding EnableWirelessCommand}" CommandParameter="{Binding}">
+                            <MenuItem.Icon>
+                                <PathIcon Data="{StaticResource IconWifiHigh}" Width="16" Height="16"
+                                          Foreground="{DynamicResource OnSurfaceVariant}"/>
+                            </MenuItem.Icon>
+                        </MenuItem>
                         <MenuItem Header="Disconnect" IsVisible="{Binding IsWireless}"
                                   Command="{Binding DisconnectCommand}" CommandParameter="{Binding}">
                             <MenuItem.Icon>

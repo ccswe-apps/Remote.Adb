@@ -10,7 +10,7 @@ A cross-platform desktop app to manage ADB (Android Debug Bridge) connections to
 2. **Emulator management** — start, manage, and create Android emulators.
 3. **Remote device connection** — connect to Android devices over the network (e.g. Wi-Fi).
 
-The app is C#; the target framework is set in `src/Directory.Build.props`. All functionality lives in a shared **`Remote.Adb.Core`** library exposed through two front-ends: a desktop GUI (**`Remote.Adb.Desktop`**, **Avalonia** + **MVVM** via CommunityToolkit.Mvvm) and a CLI (**`Remote.Adb.Console`**). It is early-stage; emulator management landed first.
+The app is C#; the target framework is set in `src/Directory.Build.props`. All functionality lives in a shared **`Remote.Adb.Core`** library exposed through two front-ends: a desktop GUI (**`Remote.Adb.Desktop`**, **Avalonia** + **MVVM** via CommunityToolkit.Mvvm) and a CLI (**`Remote.Adb.Console`**). All three pillars (tunnel, emulators, network devices) have landed; see `docs/ROADMAP.md` for what's next.
 
 ## Roadmap & tasks
 
@@ -39,6 +39,16 @@ Hard-won knowledge the tunnel and adb code preserve.
 - A newer local adb (SDK upgrade, a different adb on PATH) can't replace a stale server that rejects its kill; the runner detects that (`doesn't match this client` / `rejected by remote server`), kills the server process, and retries once.
 - A server started outside the app (Android Studio, a terminal) lacks the variable, so connecting the tunnel replaces it (`IAdbServerService.EnsureOwnServerAsync`). The runner knows the app started the server because adb reports `daemon started successfully`.
 - The adb server's port is `ANDROID_ADB_SERVER_PORT` or 5037 (`IAdbRunner.ServerPort`) — not the tunnel's configurable local port.
+
+**Wireless devices (`Adb/Wireless/`):**
+
+- Everything goes through the **local** adb server — the one the tunnel exposes — so a device connected here is also visible to the remote host's adb. mDNS discovery and QR pairing need this machine on the phone's LAN with UDP 5353 allowed for `adb` through the firewall; adb's discovery is IPv4-only.
+- `adb connect` **exits 0 even when it fails** — classify by the message (test `already connected to` before `connected to`). `adb mdns check` also exits 0 when discovery is off (available only if the output starts with `mdns daemon version`). `adb pair` failures mostly surface as a generic `error: protocol fault …`, and it blocks with no timeout of its own.
+- Pass the pairing code on **stdin** (`adb pair <addr>` with no code prompts for it), never as an argument, so it stays out of logs and the process list. A QR code's password is just a pairing code; its service name and password use `[A-Za-z0-9]` only.
+- After pairing, adb auto-connects by the device's guid (= its `_adb-tls-connect` mDNS instance name) only if it has already seen that announcement — `PairAsync` connects explicitly when it hasn't.
+- An Android 11+ device's connect port changes every time Wireless debugging is toggled, so TLS connect addresses aren't remembered for reconnects — only addresses typed by hand and legacy `adb tcpip` devices (port 5555) are.
+- Switching a USB device to Wi-Fi: read its address **before** `adb tcpip` (adbd restarting drops the USB link) and only from a `wlan*` interface (never mobile data or a VPN), then retry the connect briefly.
+- Disconnecting an mDNS-connected device may not stick: adb's mDNS auto-connect can reconnect it.
 
 ## Git Commits
 

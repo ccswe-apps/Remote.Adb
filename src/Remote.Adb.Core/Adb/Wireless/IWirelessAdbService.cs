@@ -20,6 +20,13 @@ public interface IWirelessAdbService
     Task<IReadOnlyList<MdnsService>> DiscoverAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Switches the USB-connected device <paramref name="serial"/> to Wi-Fi debugging: reads its Wi-Fi address (first —
+    /// the USB link drops once adbd restarts), runs <c>adb tcpip 5555</c>, then connects to — and remembers — the device
+    /// at <c>ip:5555</c>, retrying briefly while adbd restarts.
+    /// </summary>
+    Task<WirelessEnableResult> EnableWirelessAsync(string serial, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Whether the local adb server can discover devices over mDNS (<c>adb mdns check</c>) — needed for the discovered-device
     /// lists and QR pairing.
     /// </summary>

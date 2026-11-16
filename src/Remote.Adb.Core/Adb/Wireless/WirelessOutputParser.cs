@@ -93,30 +93,43 @@ public static class WirelessOutputParser
     }
 
     /// <summary>
-    /// Parses the output of <c>adb -s &lt;serial&gt; shell ip route</c> for the device's Wi-Fi address: the
-    /// <c>src</c> of a route on a <c>wlan*</c> interface, else of the first route that has one.
+    /// Parses the output of <c>adb -s &lt;serial&gt; shell ip -4 addr show wlan0</c> for the interface's IPv4 address
+    /// (the <c>inet a.b.c.d/nn</c> line, without the prefix length); <see langword="null"/> when it has none.
     /// </summary>
-    public static string? ParseIpRouteSource(string output)
+    public static string? ParseIpAddrInet(string output)
     {
-        string? fallback = null;
-
         foreach (var rawLine in output.AsSpan().EnumerateLines())
         {
-            var source = TokenAfter(rawLine, "src");
-            if (source.IsEmpty)
+            var address = TokenAfter(rawLine, "inet");
+            if (address.IsEmpty)
             {
                 continue;
             }
 
-            if (TokenAfter(rawLine, "dev").StartsWith("wlan", StringComparison.Ordinal))
+            var slash = address.IndexOf('/');
+            return (slash >= 0 ? address[..slash] : address).ToString();
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Parses the output of <c>adb -s &lt;serial&gt; shell ip route</c> for the device's Wi-Fi address: the <c>src</c> of
+    /// a route on a <c>wlan*</c> interface. Other interfaces (mobile data, a VPN) are ignored — the device must be reached
+    /// over the same Wi-Fi as this computer — so <see langword="null"/> means "not on Wi-Fi" (or a non-standard name).
+    /// </summary>
+    public static string? ParseIpRouteSource(string output)
+    {
+        foreach (var rawLine in output.AsSpan().EnumerateLines())
+        {
+            var source = TokenAfter(rawLine, "src");
+            if (!source.IsEmpty && TokenAfter(rawLine, "dev").StartsWith("wlan", StringComparison.Ordinal))
             {
                 return source.ToString();
             }
-
-            fallback ??= source.ToString();
         }
 
-        return fallback;
+        return null;
     }
 
     /// <summary>
@@ -205,6 +218,17 @@ public static class WirelessOutputParser
             "_adb._tcp" => MdnsServiceType.Legacy,
             _ => MdnsServiceType.Unknown,
         };
+    }
+
+    /// <summary>
+    /// Parses <c>adb -s &lt;serial&gt; tcpip &lt;port&gt;</c>: success when adbd switched to TCP
+    /// (<c>restarting in TCP mode port: …</c>), otherwise adb's error.
+    /// </summary>
+    public static WirelessResult ParseTcpip(ProcessResult result)
+    {
+        var line = FirstLine(result.StandardOutput);
+        var success = result.Success && line.StartsWith("restarting in TCP mode", StringComparison.Ordinal);
+        return new WirelessResult(success, success ? line.ToString() : MessageOf(result));
     }
 
     private static string StripPrompt(string message) =>
