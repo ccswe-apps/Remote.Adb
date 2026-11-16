@@ -1,20 +1,12 @@
-# Wireless devices: QR pairing, Wi-Fi debugging from USB
+# Wireless devices: Wi-Fi debugging from USB
 
 Pillar 3's remaining work. Connecting by address, pairing with a code, disconnecting, reconnecting remembered
-addresses after an adb restart, and picking devices discovered over mDNS are in (`Remote.Adb.Core/Adb/Wireless/`, the
+addresses after an adb restart, picking devices discovered over mDNS, and QR-code pairing are in (`Remote.Adb.Core/Adb/Wireless/`, the
 Devices page's **Add Wireless Device** dialog, the card's **Disconnect**, and `wireless …` in the console). What's
 left builds on that.
 
 ## Remaining work
 
-- [ ] **QR pairing (B4).** Generate `WIFI:T:ADB;S:<service-name>;P:<password>;;` with the name and password drawn
-  from `[A-Za-z0-9]` only (`RandomNumberGenerator.GetString`), render it with **QRCoder** (MIT; Desktop only) as a
-  small fixed-size control drawn dark-on-white regardless of theme — `QRCodeData.ModuleMatrix` already includes the
-  quiet zone. Don't add a second poller: watch the dialog's `WirelessDiscoveryViewModel.PairingServices` for the
-  service whose instance == the service name, then call `PairAsync(service.Address, password)` (the password is just
-  a pairing code). Lives on the Pair tab beside the code form; regenerate the code every ~2 minutes, pause while the
-  code form is pairing, close the dialog at most once, and show the discovery-unavailable hint instead of a code
-  that can't complete. Give the `adb pair` call a timeout.
 - [ ] **Enable Wi-Fi debugging from USB (B5).** A USB device card action (online/authorized devices only): read the
   IP **first** — a `wlan*` route's `src` only (never mobile data/VPN), falling back to `ip -4 addr show wlan0` — then
   `adb -s <serial> tcpip 5555` (prints `restarting in TCP mode port: 5555`; adbd restarting drops the USB link, so

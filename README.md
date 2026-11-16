@@ -29,12 +29,12 @@ while it's there.
    Can also connect automatically on launch.
 2. **Emulator management** — list, start, stop, create, view/edit, and delete Android Virtual Devices.
 3. **Devices** — lists the devices `adb` currently sees (`adb devices -l`), and connects devices over the
-   network: pair an Android 11+ device with its Wireless debugging pairing code, or connect by `ip:port`.
+   network: pair an Android 11+ device by scanning a QR code or entering its pairing code, or connect by `ip:port`.
    Connections go through your local `adb` server, so they're visible on the remote host through the tunnel,
    and addresses you connect by hand are reconnected automatically after `adb` restarts.
 
-> **Status:** early but usable. The SSH tunnel, emulator management, and wireless connect/pair/discovery are
-> working; QR-code pairing and switching a USB device to Wi-Fi are next. See
+> **Status:** early but usable. The SSH tunnel, emulator management, and wireless connect/pair (by code or QR) and
+> discovery are working; switching a USB device to Wi-Fi is next. See
 > [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Requirements
@@ -87,7 +87,8 @@ dotnet run --project src/Remote.Adb.Console -- tunnel
 - **Devices** — your AVDs with their running state (start/stop/create/edit/delete) and the physical devices `adb`
   currently sees, in one list auto-refreshed while the page is open.
   - **Add Wireless Device** — *Pair* an Android 11+ device: on the phone open Developer options › Wireless
-    debugging › *Pair device with pairing code* and enter the IP address & port and the code it shows. Once paired
+    debugging › *Pair device with QR code* and scan the code the dialog shows, or *Pair device with pairing code*
+    and enter the IP address & port and the code it shows. Once paired
     it connects automatically (if it doesn't, the dialog asks for the IP address & port shown on the Wireless
     debugging screen). Or *Connect* directly to a paired device or one in `adb tcpip` mode by `ip[:port]` — those
     addresses are remembered and reconnected whenever the local `adb` server restarts or the tunnel comes back up.

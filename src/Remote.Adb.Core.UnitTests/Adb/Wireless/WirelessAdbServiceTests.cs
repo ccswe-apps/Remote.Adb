@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using Moq;
 using NUnit.Framework;
 using Remote.Adb.Core.Adb.Wireless;
+using Remote.Adb.Core.Common;
 using Remote.Adb.Core.Settings;
 using Remote.Adb.Core.UnitTests.Fakes;
 
@@ -31,6 +32,7 @@ public class WirelessAdbServiceTests
         new(Adb.Object, Settings.Object, new LoggerFake<WirelessAdbService>())
         {
             PairConnectTimeout = TimeSpan.FromMilliseconds(50),
+            PairTimeout = TimeSpan.FromMilliseconds(100),
             PollInterval = TimeSpan.FromMilliseconds(10),
         };
 
@@ -184,6 +186,26 @@ public class WirelessAdbServiceTests
                 Assert.That(result.Paired, Is.True);
                 Assert.That(result.Connected, Is.False);
                 Assert.That(result.Message, Does.Contain("Wireless debugging"));
+            });
+        }
+
+        [Test]
+        public async Task It_gives_up_when_adb_pair_hangs()
+        {
+            Adb.Inner
+                .Setup(runner => runner.RunAsync(It.Is<IReadOnlyList<string>>(args => args[0] == "pair"), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                .Returns<IReadOnlyList<string>, string?, CancellationToken>(async (_, _, token) =>
+                {
+                    await Task.Delay(Timeout.Infinite, token);
+                    return new ProcessResult(0, string.Empty, string.Empty);
+                });
+
+            var result = await CreateService().PairAsync("192.168.1.20:37123", "123456");
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Paired, Is.False);
+                Assert.That(result.Message, Does.Contain("Timed out"));
             });
         }
 

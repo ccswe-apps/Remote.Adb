@@ -31,6 +31,9 @@ public sealed class WirelessAdbService : IWirelessAdbService
     /// <summary>How long to wait, after pairing, for the device to connect.</summary>
     internal TimeSpan PairConnectTimeout { get; init; } = TimeSpan.FromSeconds(10);
 
+    /// <summary>How long <c>adb pair</c> itself may take; it blocks on the network handshake with no timeout of its own.</summary>
+    internal TimeSpan PairTimeout { get; init; } = TimeSpan.FromSeconds(30);
+
     /// <summary>How often to check for the device while waiting for it to connect after pairing.</summary>
     internal TimeSpan PollInterval { get; init; } = TimeSpan.FromSeconds(1);
 
@@ -120,7 +123,19 @@ public sealed class WirelessAdbService : IWirelessAdbService
         }
 
         // `adb pair <address>` with no code prompts for it on stdin — which keeps the code off the command line.
-        var result = await _adb.RunAsync(["pair", address], $"{pairingCode}\n", cancellationToken);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(PairTimeout);
+
+        ProcessResult result;
+        try
+        {
+            result = await _adb.RunAsync(["pair", address], $"{pairingCode}\n", timeout.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return new WirelessPairResult(false, false, $"Timed out pairing with {address}.");
+        }
+
         var pair = WirelessOutputParser.ParsePair(result);
         if (!pair.Paired || pair.Guid is null)
         {
