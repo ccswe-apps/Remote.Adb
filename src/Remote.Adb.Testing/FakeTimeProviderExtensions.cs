@@ -7,15 +7,15 @@ internal static class FakeTimeProviderExtensions
 {
     private static readonly TimeSpan SettleTime = TimeSpan.FromMilliseconds(10);
 
+    /// <inheritdoc cref="AdvanceUntilCompleteAsync{T}"/>
+    public static async Task AdvanceUntilCompleteAsync(this FakeTimeProvider time, Task task, TimeSpan step, int maxSteps = 1000) =>
+        await time.AdvanceUntilCompleteAsync(Complete(task), step, maxSteps);
+
     /// <summary>
     /// Advances <paramref name="time"/> by <paramref name="step"/> until <paramref name="task"/> completes, then returns
     /// its result — for an operation that polls, delays or times out on the fake clock. Fails after
     /// <paramref name="maxSteps"/> steps rather than spinning forever.
     /// </summary>
-    /// <inheritdoc cref="AdvanceUntilCompleteAsync{T}"/>
-    public static async Task AdvanceUntilCompleteAsync(this FakeTimeProvider time, Task task, TimeSpan step, int maxSteps = 1000) =>
-        await time.AdvanceUntilCompleteAsync(Complete(task), step, maxSteps);
-
     public static async Task<T> AdvanceUntilCompleteAsync<T>(this FakeTimeProvider time, Task<T> task, TimeSpan step, int maxSteps = 1000)
     {
         for (var steps = 0; !task.IsCompleted; steps++)
