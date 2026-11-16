@@ -26,6 +26,12 @@ public sealed class SettingsModel
     /// <summary>Override for the Java home (JDK) directory; <see langword="null"/> uses <c>JAVA_HOME</c>/PATH.</summary>
     public string? JavaHome { get; set; }
 
+    /// <summary>The height, in pixels, of the desktop app's docked log panel when it's open.</summary>
+    public double LogPanelHeight { get; set; } = 220;
+
+    /// <summary>Whether the desktop app's docked log panel is open.</summary>
+    public bool LogPanelOpen { get; set; }
+
     /// <summary>Override for the Android SDK root; <see langword="null"/> uses the env-var/default resolution.</summary>
     public string? SdkRoot { get; set; }
 

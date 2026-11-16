@@ -1,0 +1,51 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:log="using:Remote.Adb.Desktop.Logging"
+             x:Class="Remote.Adb.Desktop.Logging.LogToolbarView"
+             x:DataType="log:LogPanelViewModel">
+
+    <UserControl.Styles>
+        <!-- A switched-on toggle (paused, following) takes the primary color, like a selected icon button. -->
+        <Style Selector="Button.Icon.active PathIcon">
+            <Setter Property="Foreground" Value="{DynamicResource Primary}"/>
+        </Style>
+        <!-- A dense level picker sized to the toolbar's icon buttons, not the theme's full-height field. -->
+        <Style Selector="ComboBox.level">
+            <Setter Property="MinHeight" Value="28"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Padding" Value="10,0,4,0"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Grid ColumnDefinitions="Auto,*,Auto" Margin="16,2,8,2">
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <PathIcon Data="{StaticResource IconTerminalWindow}" Width="16" Height="16"
+                      Foreground="{DynamicResource OnSurfaceVariant}"/>
+            <TextBlock Classes="TitleSmall" Text="Log" VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+            <ComboBox Classes="level" ItemsSource="{Binding LevelOptions}" SelectedItem="{Binding MinimumLevel}"
+                      MinWidth="120" VerticalAlignment="Center" Margin="0,0,6,0" ToolTip.Tip="Minimum level shown"
+                      AutomationProperties.Name="Minimum level"/>
+            <Button Classes="Icon" Classes.active="{Binding IsPaused}" Command="{Binding TogglePauseCommand}"
+                    ToolTip.Tip="Pause / resume" AutomationProperties.Name="Pause log">
+                <PathIcon Data="{StaticResource IconPause}" Width="16" Height="16"/>
+            </Button>
+            <Button Classes="Icon" Classes.active="{Binding AutoScroll}" Command="{Binding ToggleAutoScrollCommand}"
+                    ToolTip.Tip="Follow new entries" AutomationProperties.Name="Follow new entries">
+                <PathIcon Data="{StaticResource IconArrowLineDown}" Width="16" Height="16"/>
+            </Button>
+            <Button Classes="Icon" Command="{Binding CopyAllCommand}" ToolTip.Tip="Copy all"
+                    AutomationProperties.Name="Copy log">
+                <PathIcon Data="{StaticResource IconCopy}" Width="16" Height="16"/>
+            </Button>
+            <Button Classes="Icon" Command="{Binding ClearCommand}" ToolTip.Tip="Clear"
+                    AutomationProperties.Name="Clear log">
+                <PathIcon Data="{StaticResource IconTrash}" Width="16" Height="16"/>
+            </Button>
+        </StackPanel>
+    </Grid>
+
+</UserControl>

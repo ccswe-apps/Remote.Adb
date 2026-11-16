@@ -4,12 +4,14 @@ using Remote.Adb.Core.Adb;
 using Remote.Adb.Core.Common;
 using Remote.Adb.Core.Diagnostics;
 using Remote.Adb.Core.Emulators;
+using Remote.Adb.Core.Logging;
 using Remote.Adb.Core.Settings;
 using Remote.Adb.Core.Tunnel;
 using Remote.Adb.Desktop.Common;
 using Remote.Adb.Desktop.Common.Notifications;
 using Remote.Adb.Desktop.Common.Threading;
 using Remote.Adb.Desktop.Devices;
+using Remote.Adb.Desktop.Logging;
 using Remote.Adb.Desktop.Settings;
 using Remote.Adb.Desktop.Shell;
 using Remote.Adb.Desktop.Theming;
@@ -25,6 +27,8 @@ public class MainWindowViewModelTests
     protected Mock<ISdkDiagnostics> Diagnostics = null!;
     protected Mock<IEmulatorService> EmulatorService = null!;
     protected Mock<INotificationService> Notifications = null!;
+    protected Mock<ISettingsService> Settings = null!;
+    protected StatusBarViewModel StatusBar = null!;
 
     [SetUp]
     public void SetUp()
@@ -43,6 +47,16 @@ public class MainWindowViewModelTests
         Diagnostics.Setup(diagnostics => diagnostics.Evaluate()).Returns(Array.Empty<ToolDiagnostic>());
 
         Notifications = new Mock<INotificationService>();
+
+        Settings = new Mock<ISettingsService>();
+        Settings.SetupProperty(settings => settings.LogPanelOpen, false);
+        Settings.SetupProperty(settings => settings.LogPanelHeight, 220d);
+    }
+
+    [TearDown]
+    public void TearDown()
+    {
+        StatusBar?.Dispose();
     }
 
     protected MainWindowViewModel CreateViewModel()
@@ -71,16 +85,103 @@ public class MainWindowViewModelTests
             Mock.Of<IUiDispatcher>(),
             Notifications.Object);
 
+        var logStore = new LogStore();
+        var logPanel = new LogPanelViewModel(logStore, new FakeUiDispatcher(), Mock.Of<IClipboardService>());
+        var tunnelService = new Mock<ITunnelService>();
+        tunnelService.Setup(service => service.Status).Returns(new TunnelStatus(TunnelState.Disconnected, null));
+        StatusBar = new StatusBarViewModel(logStore, tunnelService.Object, Settings.Object, new FakeUiDispatcher());
+
         return new MainWindowViewModel(
             devices,
             tunnel,
             settings,
+            logPanel,
+            StatusBar,
+            Settings.Object,
             Diagnostics.Object,
             Notifications.Object);
     }
 
     protected void VerifyListCount(Times times) =>
         DeviceService.Verify(service => service.ListAsync(It.IsAny<CancellationToken>()), times);
+
+    public class When_The_Log_Panel_Is_Toggled : MainWindowViewModelTests
+    {
+        [Test]
+        public void It_restores_the_persisted_state()
+        {
+            Settings.Object.LogPanelOpen = true;
+            Settings.Object.LogPanelHeight = 300;
+
+            var viewModel = CreateViewModel();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(viewModel.IsLogPanelOpen, Is.True);
+                Assert.That(viewModel.LogPanelRowHeight, Is.EqualTo(300));
+            });
+        }
+
+        [Test]
+        public void It_opens_and_persists_the_panel()
+        {
+            var viewModel = CreateViewModel();
+
+            viewModel.ToggleLogPanelCommand.Execute(null);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(viewModel.IsLogPanelOpen, Is.True);
+                Assert.That(viewModel.LogPanelRowHeight, Is.EqualTo(220));
+                Assert.That(Settings.Object.LogPanelOpen, Is.True);
+                Assert.That(StatusBar.IsLogVisible, Is.True);
+            });
+        }
+
+        [Test]
+        public void It_collapses_the_row_when_closed()
+        {
+            Settings.Object.LogPanelOpen = true;
+            var viewModel = CreateViewModel();
+
+            viewModel.ToggleLogPanelCommand.Execute(null);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(viewModel.LogPanelRowHeight, Is.Zero);
+                Assert.That(Settings.Object.LogPanelOpen, Is.False);
+                Assert.That(StatusBar.IsLogVisible, Is.False);
+            });
+        }
+
+        [Test]
+        public void It_persists_the_height_only_when_committed()
+        {
+            Settings.Object.LogPanelOpen = true;
+            var viewModel = CreateViewModel();
+
+            viewModel.LogPanelRowHeight = 340;
+            var beforeCommit = Settings.Object.LogPanelHeight;
+            viewModel.CommitLogPanelHeight();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(beforeCommit, Is.EqualTo(220));
+                Assert.That(Settings.Object.LogPanelHeight, Is.EqualTo(340));
+            });
+        }
+
+        [Test]
+        public void It_clamps_the_height_to_the_minimum()
+        {
+            Settings.Object.LogPanelOpen = true;
+            var viewModel = CreateViewModel();
+
+            viewModel.LogPanelRowHeight = 10;
+
+            Assert.That(viewModel.LogPanelRowHeight, Is.EqualTo(MainWindowViewModel.MinLogPanelHeight));
+        }
+    }
 
     public class When_RaiseStartupDiagnostics_Is_Called : MainWindowViewModelTests
     {

@@ -42,6 +42,36 @@ public sealed class SettingsService : ISettingsService
         set => SetOverride(_model.JavaHome, value, normalized => _model.JavaHome = normalized);
     }
 
+    public double LogPanelHeight
+    {
+        get => _model.LogPanelHeight;
+        set
+        {
+            if (_model.LogPanelHeight.Equals(value))
+            {
+                return;
+            }
+
+            _model.LogPanelHeight = value;
+            _store.Save(_model);
+        }
+    }
+
+    public bool LogPanelOpen
+    {
+        get => _model.LogPanelOpen;
+        set
+        {
+            if (_model.LogPanelOpen == value)
+            {
+                return;
+            }
+
+            _model.LogPanelOpen = value;
+            _store.Save(_model);
+        }
+    }
+
     public string? SdkRoot
     {
         get => _model.SdkRoot;

@@ -5,6 +5,7 @@ using Remote.Adb.Desktop.Common;
 using Remote.Adb.Desktop.Common.Notifications;
 using Remote.Adb.Desktop.Common.Threading;
 using Remote.Adb.Desktop.Devices;
+using Remote.Adb.Desktop.Logging;
 using Remote.Adb.Desktop.Settings;
 using Remote.Adb.Desktop.Shell;
 using Remote.Adb.Desktop.Theming;
@@ -26,6 +27,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IDensityApplier, DensityApplier>();
         services.AddSingleton<ITimerFactory, DispatcherTimerFactory>();
         services.AddSingleton<IUiDispatcher, DispatcherUiDispatcher>();
+        services.AddSingleton<IClipboardService, TopLevelClipboardService>();
         services.AddSingleton<IConfirmDialog, ConfirmDialog>();
         services.AddSingleton<IAvdCreateDialog, AvdCreateDialog>();
         services.AddSingleton<NotificationService>();
@@ -45,8 +47,10 @@ public static class ServiceCollectionExtensions
         services.AddTransient<MainWindow>();
         services.AddTransient<MainWindowViewModel>();
         services.AddTransient<DevicesViewModel>();
+        services.AddTransient<LogPanelViewModel>();
         services.AddTransient<TunnelViewModel>();
         services.AddTransient<SettingsViewModel>();
+        services.AddTransient<StatusBarViewModel>();
 
         // The three page views the ViewLocator resolves through DI; every other view is instantiated by XAML.
         services.AddTransient<DevicesView>();

@@ -1,12 +1,16 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
+using Remote.Adb.Core.Logging;
 
 namespace Remote.Adb.Core.Common;
 
 /// <inheritdoc />
 public sealed class ProcessRunner : IProcessRunner
 {
+    // Large outputs (e.g. sdkmanager --list) are clipped in the log; callers still receive the full text.
+    internal const int MaxLoggedOutputLength = 4096;
+
     private readonly ILogger<ProcessRunner> _logger;
 
     public ProcessRunner(ILogger<ProcessRunner> logger)
@@ -53,9 +57,62 @@ public sealed class ProcessRunner : IProcessRunner
         return startInfo;
     }
 
+    // A readable one-line rendering for the log: the tool's name (not its full SDK path) and its arguments, quoting
+    // any that contain whitespace.
+    internal static string FormatCommand(string fileName, IReadOnlyList<string> arguments)
+    {
+        var name = Path.GetFileNameWithoutExtension(fileName);
+        if (arguments.Count == 0)
+        {
+            return name;
+        }
+
+        var rendered = arguments.Select(argument => argument.Any(char.IsWhiteSpace) ? $"\"{argument}\"" : argument);
+        return $"{name} {string.Join(' ', rendered)}";
+    }
+
     private static bool IsBatchScript(string fileName) =>
         fileName.EndsWith(".bat", StringComparison.OrdinalIgnoreCase)
         || fileName.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase);
+
+    private void LogCompleted(string command, ProcessResult result, long elapsedMilliseconds, bool background)
+    {
+        // Routine background work stays at Debug even when it fails, so a persistently failing poll can't flood the
+        // log with a warning every few seconds; user-initiated failures surface as warnings.
+        var level = background ? LogLevel.Debug : result.Success ? LogLevel.Information : LogLevel.Warning;
+        ProcessRunnerLog.CommandCompleted(_logger, level, command, result.ExitCode, elapsedMilliseconds);
+
+        // A user-initiated command's output is the point of the log, so it goes out alongside the completion
+        // (Information, or Warning for a failure); background polls skip it — they re-read it every few seconds.
+        if (background)
+        {
+            return;
+        }
+
+        var outputLevel = result.Success ? LogLevel.Information : LogLevel.Warning;
+        LogOutput(outputLevel, command, "stdout", result.StandardOutput);
+        LogOutput(outputLevel, command, "stderr", result.StandardError);
+    }
+
+    private void LogOutput(LogLevel level, string command, string stream, string output)
+    {
+        if (!_logger.IsEnabled(level))
+        {
+            return;
+        }
+
+        var trimmed = output.AsSpan().TrimEnd();
+        if (trimmed.IsEmpty)
+        {
+            return;
+        }
+
+        var text = trimmed.Length > MaxLoggedOutputLength
+            ? $"{trimmed[..MaxLoggedOutputLength]}… ({trimmed.Length - MaxLoggedOutputLength} more characters)"
+            : trimmed.ToString();
+
+        ProcessRunnerLog.CommandOutput(_logger, level, command, stream, text);
+    }
 
     private static async Task ObserveAsync(Task task)
     {
@@ -77,10 +134,13 @@ public sealed class ProcessRunner : IProcessRunner
         startInfo.RedirectStandardError = true;
         startInfo.RedirectStandardInput = standardInput is not null;
 
-        _logger.LogDebug("Running {FileName} {Arguments}", fileName, string.Join(' ', arguments));
+        var command = FormatCommand(fileName, arguments);
+        var background = CommandLogScope.IsBackground;
+        ProcessRunnerLog.CommandStarted(_logger, LogLevel.Debug, command);
 
+        var stopwatch = Stopwatch.StartNew();
         using var process = new Process { StartInfo = startInfo };
-        StartProcess(process, fileName);
+        StartProcess(process, fileName, command, background);
 
         if (standardInput is not null)
         {
@@ -109,8 +169,10 @@ public sealed class ProcessRunner : IProcessRunner
 
             var standardOutput = await standardOutputTask;
             var standardError = await standardErrorTask;
+            var result = new ProcessResult(process.ExitCode, standardOutput, standardError);
 
-            return new ProcessResult(process.ExitCode, standardOutput, standardError);
+            LogCompleted(command, result, stopwatch.ElapsedMilliseconds, background);
+            return result;
         }
         catch (OperationCanceledException)
         {
@@ -120,6 +182,8 @@ public sealed class ProcessRunner : IProcessRunner
             process.KillTree();
             await ObserveAsync(standardOutputTask);
             await ObserveAsync(standardErrorTask);
+
+            ProcessRunnerLog.CommandCancelled(_logger, background ? LogLevel.Debug : LogLevel.Information, command, stopwatch.ElapsedMilliseconds);
             throw;
         }
     }
@@ -129,12 +193,28 @@ public sealed class ProcessRunner : IProcessRunner
     {
         var startInfo = CreateStartInfo(fileName, arguments);
 
-        _logger.LogDebug("Starting {FileName} {Arguments}", fileName, string.Join(' ', arguments));
+        var command = FormatCommand(fileName, arguments);
+        var background = CommandLogScope.IsBackground;
+        ProcessRunnerLog.CommandStarted(_logger, background ? LogLevel.Debug : LogLevel.Information, command);
 
         var process = new Process { StartInfo = startInfo };
-        StartProcess(process, fileName);
+        StartProcess(process, fileName, command, background);
 
         return process;
+    }
+
+    private void StartProcess(Process process, string fileName, string command, bool background)
+    {
+        try
+        {
+            process.Start();
+        }
+        catch (Win32Exception exception)
+        {
+            var launchException = new ProcessLaunchException(fileName, exception);
+            ProcessRunnerLog.CommandLaunchFailed(_logger, background ? LogLevel.Debug : LogLevel.Warning, command, launchException);
+            throw launchException;
+        }
     }
 
     /// <inheritdoc />
@@ -144,23 +224,13 @@ public sealed class ProcessRunner : IProcessRunner
         startInfo.RedirectStandardOutput = true;
         startInfo.RedirectStandardError = true;
 
-        _logger.LogDebug("Starting session {FileName} {Arguments}", fileName, string.Join(' ', arguments));
+        var command = FormatCommand(fileName, arguments);
+        var background = CommandLogScope.IsBackground;
+        ProcessRunnerLog.CommandStarted(_logger, background ? LogLevel.Debug : LogLevel.Information, command);
 
         var process = new Process { StartInfo = startInfo };
-        StartProcess(process, fileName);
+        StartProcess(process, fileName, command, background);
 
         return new ProcessSession(process);
-    }
-
-    private static void StartProcess(Process process, string fileName)
-    {
-        try
-        {
-            process.Start();
-        }
-        catch (Win32Exception exception)
-        {
-            throw new ProcessLaunchException(fileName, exception);
-        }
     }
 }

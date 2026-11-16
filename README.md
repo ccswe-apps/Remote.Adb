@@ -83,9 +83,15 @@ dotnet run --project src/Remote.Adb.Console -- tunnel
   and a **Restart adb** action bounces the local `adb` server without dropping the tunnel.
 - **Devices** — your AVDs with their running state (start/stop/create/edit/delete) and the physical devices `adb`
   currently sees, in one list auto-refreshed while the page is open.
+- **Status bar & log** — the strip along the bottom of the window shows the tunnel's state, the last command the
+  app ran (with its exit status and duration), and a badge counting warnings/errors you haven't seen. Click it to
+  open the **log panel**: every `adb`/`ssh`/`emulator` command the app runs (exit code, duration, and output) plus
+  the app's own log, with a level filter, pause, follow, copy, and clear. Drag its top edge to resize; its
+  open state and height are remembered. Routine background polling (the device list's auto-refresh) is left out
+  so the log shows what *you* did.
 
-App settings (the remote host and ports, SDK/JDK/AVD-home overrides, theme/density) are persisted under your
-app-data folder.
+App settings (the remote host and ports, SDK/JDK/AVD-home overrides, theme/density, the log panel's state) are
+persisted under your app-data folder.
 
 ### Console
 
@@ -98,7 +104,8 @@ dotnet run --project src/Remote.Adb.Console -- emulator list
 dotnet run --project src/Remote.Adb.Console -- emulator start <avd-name>
 ```
 
-Run the console with no arguments for the full command list.
+Run the console with no arguments for the full command list. Add `--verbose` to any command to print each tool it
+runs and that tool's output.
 
 ---
 
@@ -135,8 +142,12 @@ dotnet test src/Remote.Adb.slnx
 
 All functionality lives in **`Remote.Adb.Core`**; the desktop GUI and console are thin front-ends that
 compose a DI service provider (`AddRemoteAdbCore()`) and drive the same services. Core and Desktop are
-organized **feature-first** (Core: `Adb/`, `Diagnostics/`, `Emulators/`, `Settings/`, `Tunnel/`; Desktop: `Devices/`,
-`Settings/`, `Shell/`, `Theming/`, `Tunnel/`), with `Common/` for cross-feature plumbing.
+organized **feature-first** (Core: `Adb/`, `Diagnostics/`, `Emulators/`, `Logging/`, `Settings/`, `Tunnel/`; Desktop:
+`Devices/`, `Logging/`, `Settings/`, `Shell/`, `Theming/`, `Tunnel/`), with `Common/` for cross-feature plumbing.
+
+Logging goes through `ILogger<T>` everywhere. The desktop host adds an in-memory `ILogStore` provider
+(`AddRemoteAdbLogStore()`) that the status bar and log panel read; `ProcessRunner` logs every external command it
+runs, and automatic polling runs inside `CommandLogScope.Background()` so it logs at Debug and stays out of the panel.
 
 The desktop app follows Avalonia's MVVM conventions:
 

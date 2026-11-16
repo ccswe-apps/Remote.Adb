@@ -1,9 +1,11 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Remote.Adb.Core.Diagnostics;
+using Remote.Adb.Core.Settings;
 using Remote.Adb.Desktop.Common;
 using Remote.Adb.Desktop.Common.Notifications;
 using Remote.Adb.Desktop.Devices;
+using Remote.Adb.Desktop.Logging;
 using Remote.Adb.Desktop.Settings;
 using Remote.Adb.Desktop.Tunnel;
 
@@ -11,36 +13,57 @@ namespace Remote.Adb.Desktop.Shell;
 
 public partial class MainWindowViewModel : ViewModelBase
 {
+    // Dragging the splitter can't shrink the log panel below this (it would hide the toolbar).
+    internal const double MinLogPanelHeight = 96;
+
     private IActivatable? _activeScreen;
     private readonly ISdkDiagnostics _diagnostics;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LogPanelRowHeight))]
+    private bool _isLogPanelOpen;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DrawerLength))]
     private bool _isRail;
 
+    private double _logPanelHeight;
     private readonly INotificationService _notifications;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentScreen))]
     private NavigationDestination? _selectedDestination;
 
+    private readonly ISettingsService _settings;
     private bool _windowActive = true;
 
     public MainWindowViewModel(
         DevicesViewModel devices,
         TunnelViewModel tunnel,
-        SettingsViewModel settings,
+        SettingsViewModel settingsScreen,
+        LogPanelViewModel logPanel,
+        StatusBarViewModel statusBar,
+        ISettingsService settings,
         ISdkDiagnostics diagnostics,
         INotificationService notifications)
     {
         _diagnostics = diagnostics;
         _notifications = notifications;
+        _settings = settings;
+
+        LogPanel = logPanel;
+        StatusBar = statusBar;
+
+        // Restore the panel's persisted state through the fields, so restoring doesn't immediately re-save it.
+        _isLogPanelOpen = settings.LogPanelOpen;
+        _logPanelHeight = Math.Max(MinLogPanelHeight, settings.LogPanelHeight);
+        StatusBar.SetLogVisible(_isLogPanelOpen);
 
         Destinations =
         [
             new NavigationDestination("Devices", "IconDeviceMobile", devices),
             new NavigationDestination("Tunnel", "IconPlugsConnected", tunnel),
-            new NavigationDestination("Settings", "IconGear", settings),
+            new NavigationDestination("Settings", "IconGear", settingsScreen),
         ];
 
         // Set via the property (not the field) so the initial destination is activated too.
@@ -54,10 +77,48 @@ public partial class MainWindowViewModel : ViewModelBase
     // Labeled drawer (260) collapses to the icon rail (80).
     public double DrawerLength => IsRail ? 80 : 260;
 
+    public LogPanelViewModel LogPanel { get; }
+
+    /// <summary>
+    /// The log panel's row height: its remembered height while open, zero while closed. The shell's splitter writes it
+    /// back as it's dragged; <see cref="CommitLogPanelHeight"/> persists it once the drag ends.
+    /// </summary>
+    public double LogPanelRowHeight
+    {
+        get => IsLogPanelOpen ? _logPanelHeight : 0;
+        set
+        {
+            if (!IsLogPanelOpen || value <= 0)
+            {
+                return;
+            }
+
+            _logPanelHeight = Math.Max(MinLogPanelHeight, value);
+        }
+    }
+
+    /// <summary>The strip along the bottom of the window: tunnel state, last command, and the log toggle.</summary>
+    public StatusBarViewModel StatusBar { get; }
+
+    /// <summary>Persists the log panel's current height. Called once a splitter drag completes, not per pixel.</summary>
+    public void CommitLogPanelHeight()
+    {
+        _settings.LogPanelHeight = _logPanelHeight;
+
+        // Re-push the (possibly clamped) height so the row snaps to it.
+        OnPropertyChanged(nameof(LogPanelRowHeight));
+    }
+
     [RelayCommand]
     private void GoToSettings()
     {
         SelectedDestination = Destinations.First(destination => destination.Label == "Settings");
+    }
+
+    partial void OnIsLogPanelOpenChanged(bool value)
+    {
+        _settings.LogPanelOpen = value;
+        StatusBar.SetLogVisible(value);
     }
 
     partial void OnSelectedDestinationChanged(NavigationDestination? value)
@@ -89,6 +150,12 @@ public partial class MainWindowViewModel : ViewModelBase
 
         _windowActive = isActive;
         UpdateActiveScreen();
+    }
+
+    [RelayCommand]
+    private void ToggleLogPanel()
+    {
+        IsLogPanelOpen = !IsLogPanelOpen;
     }
 
     [RelayCommand]

@@ -17,6 +17,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Remote.Adb.Desktop.UnitTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="CCSWE.Avalonia.Hosting" />
     <PackageReference Include="CCSWE.Avalonia.Hosting.Desktop" />
     <PackageReference Include="CCSWE.Avalonia.Material" />
