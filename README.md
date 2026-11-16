@@ -188,6 +188,16 @@ The reverse-tunnel workflow has a few non-obvious requirements the implementatio
 The app adds non-interactive `ssh` options (`BatchMode`, `ConnectTimeout`, `GSSAPIAuthentication=no`,
 `StrictHostKeyChecking=accept-new`) so it never hangs on a prompt from a windowless GUI process.
 
+It also protects the local `adb` server the tunnel forwards to:
+
+- Every `adb` command the app runs goes through one shared runner (`IAdbRunner`) that sets `ADB_REJECT_KILL_SERVER=1`,
+  so a server the app starts refuses `kill-server` — including one a remote `adb` of a different version sends through
+  the tunnel, which would otherwise kill your local server and drop every device.
+- Connecting the tunnel replaces a server started outside the app (e.g. by Android Studio), since that one wouldn't
+  reject the kill. **Restart adb** stops the server by killing its process (it won't accept `kill-server` either).
+- If you upgrade platform-tools while the app's server is running, the new `adb` can't replace the old server itself;
+  the app notices, stops the old server, and retries.
+
 ### Releasing
 
 Versioning is [Nerdbank.GitVersioning](https://github.com/dotnet/Nerdbank.GitVersioning) — `version.json`

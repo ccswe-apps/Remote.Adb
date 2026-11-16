@@ -10,16 +10,14 @@ public sealed class WirelessAdbService : IWirelessAdbService
 {
     private const string DefaultPortSuffix = ":5555";
 
-    private readonly IAndroidSdk _androidSdk;
+    private readonly IAdbRunner _adb;
     private readonly Lock _gate = new();
     private readonly ILogger<WirelessAdbService> _logger;
-    private readonly IProcessRunner _processRunner;
     private readonly ISettingsService _settings;
 
-    public WirelessAdbService(IProcessRunner processRunner, IAndroidSdk androidSdk, ISettingsService settings, ILogger<WirelessAdbService> logger)
+    public WirelessAdbService(IAdbRunner adb, ISettingsService settings, ILogger<WirelessAdbService> logger)
     {
-        _processRunner = processRunner;
-        _androidSdk = androidSdk;
+        _adb = adb;
         _settings = settings;
         _logger = logger;
     }
@@ -37,7 +35,7 @@ public sealed class WirelessAdbService : IWirelessAdbService
     internal TimeSpan PollInterval { get; init; } = TimeSpan.FromSeconds(1);
 
     private Task<ProcessResult> AdbAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken) =>
-        _processRunner.RunAsync(_androidSdk.AdbPath, arguments, cancellationToken: cancellationToken);
+        _adb.RunAsync(arguments, cancellationToken: cancellationToken);
 
     /// <inheritdoc />
     public async Task<WirelessConnectResult> ConnectAsync(string address, bool remember = true, CancellationToken cancellationToken = default)
@@ -115,7 +113,7 @@ public sealed class WirelessAdbService : IWirelessAdbService
         }
 
         // `adb pair <address>` with no code prompts for it on stdin — which keeps the code off the command line.
-        var result = await _processRunner.RunAsync(_androidSdk.AdbPath, ["pair", address], $"{pairingCode}\n", cancellationToken: cancellationToken);
+        var result = await _adb.RunAsync(["pair", address], $"{pairingCode}\n", cancellationToken);
         var pair = WirelessOutputParser.ParsePair(result);
         if (!pair.Paired || pair.Guid is null)
         {

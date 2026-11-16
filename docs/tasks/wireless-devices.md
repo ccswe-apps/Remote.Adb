@@ -28,11 +28,6 @@ dialog, the card's **Disconnect**, and `wireless …` in the console). What's le
 
 ## Deferred hardening
 
-- **`ADB_REJECT_KILL_SERVER=1`** on the local server, so a version-mismatched *remote* adb client can't kill it
-  over the tunnel (dropping every wireless device). It also rejects the app's own `adb kill-server`, so
-  `AdbServerService.KillAsync` (used by **Restart adb**) would first need to kill the server process directly.
-  `WirelessReconnect` already reconnects saved addresses when the server or tunnel comes back, which covers the
-  common case.
 - **One device, several rows.** A phone can show up as its USB serial, as `ip:port`, and as
   `adb-<guid>._adb-tls-connect._tcp` at once. Grouping rows by `ro.serialno` would collapse them.
 

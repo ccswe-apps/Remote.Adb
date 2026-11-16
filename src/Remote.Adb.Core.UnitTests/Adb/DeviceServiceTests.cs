@@ -2,7 +2,6 @@ using System.Diagnostics.CodeAnalysis;
 using Moq;
 using NUnit.Framework;
 using Remote.Adb.Core.Adb;
-using Remote.Adb.Core.Common;
 using Remote.Adb.Core.UnitTests.Fakes;
 
 namespace Remote.Adb.Core.UnitTests.Adb;
@@ -10,26 +9,19 @@ namespace Remote.Adb.Core.UnitTests.Adb;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public class DeviceServiceTests
 {
-    private const string AdbPath = "adb";
-
-    private static DeviceService CreateService(Mock<IProcessRunner> processRunner, Mock<IDeviceDetailsResolver>? detailsResolver = null)
+    private static AdbRunnerMock AdbReturning(string standardOutput)
     {
-        var sdk = new Mock<IAndroidSdk>();
-        sdk.SetupGet(s => s.AdbPath).Returns(AdbPath);
+        var adb = new AdbRunnerMock();
+        adb.Returns(["devices", "-l"], standardOutput);
 
-        detailsResolver ??= new Mock<IDeviceDetailsResolver>();
-
-        return new DeviceService(processRunner.Object, sdk.Object, detailsResolver.Object);
+        return adb;
     }
 
-    private static Mock<IProcessRunner> ProcessRunnerReturning(string standardOutput)
+    private static DeviceService CreateService(AdbRunnerMock adb, Mock<IDeviceDetailsResolver>? detailsResolver = null)
     {
-        var processRunner = new Mock<IProcessRunner>();
-        processRunner
-            .Setup(r => r.RunAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string?>(), It.IsAny<IReadOnlyDictionary<string, string>?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ProcessResult(0, standardOutput, string.Empty));
+        detailsResolver ??= new Mock<IDeviceDetailsResolver>();
 
-        return processRunner;
+        return new DeviceService(adb.Object, detailsResolver.Object);
     }
 
     public class When_ListAsync_Is_Called : DeviceServiceTests
@@ -37,26 +29,24 @@ public class DeviceServiceTests
         [Test]
         public async Task It_runs_adb_devices_long_and_parses_the_output()
         {
-            var processRunner = ProcessRunnerReturning("List of devices attached\nemulator-5554\tdevice model:Pixel_7 transport_id:1\n");
-            var service = CreateService(processRunner);
+            var adb = AdbReturning("List of devices attached\nemulator-5554\tdevice model:Pixel_7 transport_id:1\n");
+            var service = CreateService(adb);
 
             var devices = await service.ListAsync();
 
-            processRunner.Verify(
-                r => r.RunAsync(AdbPath, It.Is<IReadOnlyList<string>>(a => a.SequenceEqual(new[] { "devices", "-l" })), It.IsAny<string?>(), It.IsAny<IReadOnlyDictionary<string, string>?>(), It.IsAny<CancellationToken>()),
-                Times.Once);
+            adb.Verify(["devices", "-l"], Times.Once());
             Assert.That(devices.Single().Model, Is.EqualTo("Pixel_7"));
         }
 
         [Test]
         public async Task It_applies_resolved_details_to_online_devices()
         {
-            var processRunner = ProcessRunnerReturning("List of devices attached\nABC123\tdevice transport_id:1\n");
+            var adb = AdbReturning("List of devices attached\nABC123\tdevice transport_id:1\n");
             var detailsResolver = new Mock<IDeviceDetailsResolver>();
             detailsResolver
                 .Setup(resolver => resolver.ResolveAsync("ABC123", It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new DeviceDetails("Pixel 9", DeviceForm.Phone, false, 35, "arm64-v8a"));
-            var service = CreateService(processRunner, detailsResolver);
+            var service = CreateService(adb, detailsResolver);
 
             var device = (await service.ListAsync()).Single();
 
@@ -70,9 +60,9 @@ public class DeviceServiceTests
         [Test]
         public async Task It_does_not_resolve_details_for_offline_devices()
         {
-            var processRunner = ProcessRunnerReturning("List of devices attached\nABC123\toffline\n");
+            var adb = AdbReturning("List of devices attached\nABC123\toffline\n");
             var detailsResolver = new Mock<IDeviceDetailsResolver>();
-            var service = CreateService(processRunner, detailsResolver);
+            var service = CreateService(adb, detailsResolver);
 
             await service.ListAsync();
 

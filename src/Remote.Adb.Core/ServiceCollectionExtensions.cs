@@ -18,6 +18,8 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddRemoteAdbCore(this IServiceCollection services)
     {
         services.AddSingleton<IProcessRunner, ProcessRunner>();
+        services.AddSingleton<IAdbRunner, AdbRunner>();
+        services.AddSingleton<IAdbServerProcesses, AdbServerProcesses>();
         services.AddSingleton<IAdbServerService, AdbServerService>();
         services.AddSingleton<IAndroidSdk, AndroidSdk>();
         services.AddSingleton<IAvdCatalog, AvdCatalog>();

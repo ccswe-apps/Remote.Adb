@@ -9,14 +9,17 @@ public sealed class EmulatorService : IEmulatorService
 {
     private const string EmulatorSerialPrefix = "emulator-";
 
+    private readonly IAdbRunner _adb;
     private readonly IAndroidSdk _androidSdk;
     private readonly IAvdCatalog _avdCatalog;
     private readonly ILogger<EmulatorService> _logger;
     private readonly IProcessRunner _processRunner;
 
-    public EmulatorService(IProcessRunner processRunner, IAndroidSdk androidSdk, IAvdCatalog avdCatalog, ILogger<EmulatorService> logger)
+    // The emulator binary runs through the process runner; adb commands go through the shared adb runner.
+    public EmulatorService(IProcessRunner processRunner, IAdbRunner adb, IAndroidSdk androidSdk, IAvdCatalog avdCatalog, ILogger<EmulatorService> logger)
     {
         _processRunner = processRunner;
+        _adb = adb;
         _androidSdk = androidSdk;
         _avdCatalog = avdCatalog;
         _logger = logger;
@@ -31,7 +34,7 @@ public sealed class EmulatorService : IEmulatorService
 
     private async Task<string?> GetAvdNameAsync(string serial, CancellationToken cancellationToken)
     {
-        var result = await _processRunner.RunAsync(_androidSdk.AdbPath, ["-s", serial, "emu", "avd", "name"], cancellationToken: cancellationToken);
+        var result = await _adb.RunAsync(["-s", serial, "emu", "avd", "name"], cancellationToken: cancellationToken);
         return EmulatorOutputParser.ParseAvdName(result.StandardOutput);
     }
 
@@ -40,7 +43,7 @@ public sealed class EmulatorService : IEmulatorService
     {
         // The AVD list and the adb device list are independent, so spawn both processes concurrently.
         var avdTask = _processRunner.RunAsync(_androidSdk.EmulatorPath, ["-list-avds"], cancellationToken: cancellationToken);
-        var devicesTask = _processRunner.RunAsync(_androidSdk.AdbPath, ["devices"], cancellationToken: cancellationToken);
+        var devicesTask = _adb.RunAsync(["devices"], cancellationToken: cancellationToken);
         await Task.WhenAll(avdTask, devicesTask);
 
         var names = EmulatorOutputParser.ParseAvdList(avdTask.Result.StandardOutput);
@@ -94,7 +97,7 @@ public sealed class EmulatorService : IEmulatorService
     public async Task StopAsync(string serial, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Stopping emulator {Serial}", serial);
-        var result = await _processRunner.RunAsync(_androidSdk.AdbPath, ["-s", serial, "emu", "kill"], cancellationToken: cancellationToken);
+        var result = await _adb.RunAsync(["-s", serial, "emu", "kill"], cancellationToken: cancellationToken);
 
         if (!result.Success)
         {
