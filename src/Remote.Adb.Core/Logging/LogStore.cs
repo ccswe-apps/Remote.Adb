@@ -28,13 +28,13 @@ public sealed class LogStore : ILogStore
     public event EventHandler<LogEntry>? EntryAdded;
 
     /// <summary>Appends an entry, assigning its sequence and timestamp, then raises <see cref="EntryAdded"/>.</summary>
-    public void Add(LogLevel level, string category, EventId eventId, string message, string? exception)
+    public void Add(LogLevel level, string category, EventId eventId, string message, string? exception, IReadOnlyDictionary<string, object?>? properties = null)
     {
         LogEntry entry;
 
         lock (_gate)
         {
-            entry = new LogEntry(++_lastSequence, DateTimeOffset.Now, level, category, eventId, message, exception);
+            entry = new LogEntry(++_lastSequence, DateTimeOffset.Now, level, category, eventId, message, exception, properties);
 
             if (_count < _buffer.Length)
             {

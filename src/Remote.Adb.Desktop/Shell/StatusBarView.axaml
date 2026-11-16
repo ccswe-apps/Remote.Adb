@@ -1,0 +1,69 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:shell="using:Remote.Adb.Desktop.Shell"
+             x:Class="Remote.Adb.Desktop.Shell.StatusBarView"
+             x:DataType="shell:StatusBarViewModel">
+
+    <UserControl.Styles>
+        <!-- Tunnel dot: muted when off, amber while connecting, green when up, red when faulted. -->
+        <Style Selector="Ellipse.dot">
+            <Setter Property="Fill" Value="{DynamicResource OnSurfaceVariant}"/>
+        </Style>
+        <Style Selector="Ellipse.dot.busy">
+            <Setter Property="Fill" Value="{DynamicResource Warning}"/>
+        </Style>
+        <Style Selector="Ellipse.dot.up">
+            <Setter Property="Fill" Value="{DynamicResource Success}"/>
+        </Style>
+        <Style Selector="Ellipse.dot.faulted">
+            <Setter Property="Fill" Value="{DynamicResource Error}"/>
+        </Style>
+        <Style Selector="TextBlock.result.failed">
+            <Setter Property="Foreground" Value="{DynamicResource Error}"/>
+        </Style>
+        <!-- The caret points the way the panel will move: up to open, down to close. -->
+        <Style Selector="PathIcon.caret">
+            <Setter Property="RenderTransform" Value="rotate(90deg)"/>
+        </Style>
+        <Style Selector="PathIcon.caret.open">
+            <Setter Property="RenderTransform" Value="rotate(-90deg)"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Grid ColumnDefinitions="Auto,Auto,*,Auto" Margin="16,0,12,0" Height="28">
+
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+                    ToolTip.Tip="{Binding TunnelToolTip}">
+            <Ellipse Classes="dot" Width="8" Height="8"
+                     Classes.busy="{Binding IsTunnelBusy}" Classes.up="{Binding IsTunnelConnected}"
+                     Classes.faulted="{Binding IsTunnelFaulted}"/>
+            <TextBlock Classes="LabelMedium" Text="{Binding TunnelText}" Foreground="{DynamicResource OnSurfaceVariant}"/>
+        </StackPanel>
+
+        <!-- The last command the app ran, exactly as it ran it. -->
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center" Margin="24,0,0,0"
+                    IsVisible="{Binding HasLastCommand}">
+            <TextBlock FontFamily="{DynamicResource CodeFontFamily}" FontSize="12" Foreground="{DynamicResource OnSurface}"
+                       TextTrimming="CharacterEllipsis" MaxWidth="420">
+                <Run Text="$ " Foreground="{DynamicResource OnSurfaceVariant}"/><Run Text="{Binding LastCommand}"/>
+            </TextBlock>
+            <TextBlock Classes="result" Classes.failed="{Binding LastCommandFailed}" Text="{Binding LastCommandResult}"
+                       FontFamily="{DynamicResource CodeFontFamily}" FontSize="12"
+                       Foreground="{DynamicResource OnSurfaceVariant}"/>
+        </StackPanel>
+
+        <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <PathIcon Data="{StaticResource IconTerminalWindow}" Width="14" Height="14"
+                      Foreground="{DynamicResource OnSurfaceVariant}"/>
+            <TextBlock Classes="LabelMedium" Text="Log" Foreground="{DynamicResource OnSurfaceVariant}"/>
+            <Border Background="{DynamicResource ErrorFill}" CornerRadius="8" Padding="6,0" MinWidth="16" Height="16"
+                    IsVisible="{Binding HasUnseenProblems}" ToolTip.Tip="Warnings and errors since you last opened the log">
+                <TextBlock Text="{Binding UnseenProblemText}" FontSize="11" Foreground="{DynamicResource OnErrorFill}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <PathIcon Classes="caret" Classes.open="{Binding IsLogVisible}" Data="{StaticResource IconCaretLeft}"
+                      Width="12" Height="12" RenderTransformOrigin="50%,50%" Foreground="{DynamicResource OnSurfaceVariant}"/>
+        </StackPanel>
+    </Grid>
+
+</UserControl>

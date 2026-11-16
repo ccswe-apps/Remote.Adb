@@ -17,6 +17,9 @@ public partial class LogPanelView : UserControl
     public LogPanelView()
     {
         InitializeComponent();
+
+        // Opening the panel (it lays out from zero height) or resizing it changes the list's size; keep following.
+        EntryList.SizeChanged += (_, _) => ScrollToEnd();
     }
 
     protected override void OnDataContextChanged(EventArgs e)

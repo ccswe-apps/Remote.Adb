@@ -50,6 +50,7 @@ public static class ServiceCollectionExtensions
         services.AddTransient<LogPanelViewModel>();
         services.AddTransient<TunnelViewModel>();
         services.AddTransient<SettingsViewModel>();
+        services.AddTransient<StatusBarViewModel>();
 
         // The three page views the ViewLocator resolves through DI; every other view is instantiated by XAML.
         services.AddTransient<DevicesView>();

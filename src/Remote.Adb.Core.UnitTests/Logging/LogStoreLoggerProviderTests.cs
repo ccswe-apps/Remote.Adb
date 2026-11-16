@@ -29,6 +29,22 @@ public class LogStoreLoggerProviderTests
         }
 
         [Test]
+        public void It_keeps_the_structured_values_without_the_template()
+        {
+            var store = new LogStore();
+            var logger = new LogStoreLoggerProvider(store).CreateLogger("Category");
+
+            logger.LogInformation("{Command} exited with code {ExitCode}", "adb devices", 0);
+
+            var properties = store.Snapshot().Single().Properties;
+            Assert.That(properties, Is.EquivalentTo(new Dictionary<string, object?>
+            {
+                ["Command"] = "adb devices",
+                ["ExitCode"] = 0,
+            }));
+        }
+
+        [Test]
         public void It_captures_the_exception_text()
         {
             var store = new LogStore();

@@ -26,6 +26,32 @@
         <Style Selector="PathIcon.collapsed">
             <Setter Property="RenderTransform" Value="rotate(180deg)"/>
         </Style>
+
+        <!-- A full-width, square, hairline-topped strip rather than a rounded button; a subtle tint on hover. -->
+        <Style Selector="Button.statusStrip">
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="MinHeight" Value="0"/>
+            <Setter Property="CornerRadius" Value="0"/>
+            <Setter Property="Background" Value="{DynamicResource SurfaceContainer}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource OutlineVariant}"/>
+            <Setter Property="BorderThickness" Value="0,1,0,0"/>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}">
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="Button.statusStrip:pointerover">
+            <Setter Property="Background" Value="{DynamicResource SurfaceContainerHigh}"/>
+        </Style>
     </Window.Styles>
 
     <Panel>
@@ -80,26 +106,19 @@
             </Panel>
         </DrawerPage.Drawer>
 
-        <!-- Pinned footer: show/hide the log panel, collapse/expand the navigation. Stacked vertically so both fit
-             the 80px rail. -->
+        <!-- Pinned footer: collapse/expand the navigation. -->
         <DrawerPage.DrawerFooter>
             <Border Padding="12,16" BorderBrush="{DynamicResource OutlineVariant}" BorderThickness="0,1,0,0">
-                <StackPanel Spacing="8" HorizontalAlignment="Center">
-                    <Button Classes="Icon" Command="{Binding ToggleLogPanelCommand}" ToolTip.Tip="Show / hide log"
-                            AutomationProperties.Name="Show / hide log">
-                        <PathIcon Data="{StaticResource IconTerminalWindow}" Width="16" Height="16"/>
-                    </Button>
-                    <Button Classes="Icon" Command="{Binding ToggleRailCommand}" ToolTip.Tip="Collapse / expand navigation"
-                            AutomationProperties.Name="Collapse / expand navigation">
-                        <PathIcon Data="{StaticResource IconCaretLeft}" Width="16" Height="16"
-                                  Classes.collapsed="{Binding IsRail}" RenderTransformOrigin="50%,50%"/>
-                    </Button>
-                </StackPanel>
+                <Button Classes="Icon" HorizontalAlignment="Center" Command="{Binding ToggleRailCommand}"
+                        ToolTip.Tip="Collapse / expand navigation" AutomationProperties.Name="Collapse / expand navigation">
+                    <PathIcon Data="{StaticResource IconCaretLeft}" Width="16" Height="16"
+                              Classes.collapsed="{Binding IsRail}" RenderTransformOrigin="50%,50%"/>
+                </Button>
             </Border>
         </DrawerPage.DrawerFooter>
 
-        <!-- Routed content over the docked log panel. DrawerPage bakes the pane↔content divider into its own
-             template, so there's no consumer-side border here.
+        <!-- Routed content over the docked log panel, over the status strip. DrawerPage bakes the pane↔content
+             divider into its own template, so there's no consumer-side border here.
              DrawerPage is a Page: its Content slot does NOT inherit the window's DataContext (the
              drawer/header/footer chrome slots do), so route it in explicitly via the Window ancestor on this grid —
              every child below inherits it. The * row bounds the page's scroll viewers; the panel row's height is
@@ -109,6 +128,7 @@
                 <RowDefinition Height="*" MinHeight="160"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="{Binding LogPanelRowHeight, Mode=TwoWay, Converter={StaticResource DoubleToGridLength}}"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <ContentControl Grid.Row="0" Content="{Binding CurrentScreen}"/>
@@ -125,6 +145,12 @@
             <Panel Grid.Row="2" IsVisible="{Binding IsLogPanelOpen}">
                 <log:LogPanelView DataContext="{Binding LogPanel}"/>
             </Panel>
+
+            <!-- The status strip is the log's collapsed form: the whole strip is one button that opens/closes it. -->
+            <Button Grid.Row="3" Classes="statusStrip" Command="{Binding ToggleLogPanelCommand}"
+                    ToolTip.Tip="Show / hide log" AutomationProperties.Name="Show / hide log">
+                <vm:StatusBarView DataContext="{Binding StatusBar}"/>
+            </Button>
         </Grid>
 
     </DrawerPage>

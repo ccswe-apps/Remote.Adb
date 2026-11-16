@@ -28,6 +28,7 @@ public class MainWindowViewModelTests
     protected Mock<IEmulatorService> EmulatorService = null!;
     protected Mock<INotificationService> Notifications = null!;
     protected Mock<ISettingsService> Settings = null!;
+    protected StatusBarViewModel StatusBar = null!;
 
     [SetUp]
     public void SetUp()
@@ -50,6 +51,12 @@ public class MainWindowViewModelTests
         Settings = new Mock<ISettingsService>();
         Settings.SetupProperty(settings => settings.LogPanelOpen, false);
         Settings.SetupProperty(settings => settings.LogPanelHeight, 220d);
+    }
+
+    [TearDown]
+    public void TearDown()
+    {
+        StatusBar?.Dispose();
     }
 
     protected MainWindowViewModel CreateViewModel()
@@ -78,13 +85,18 @@ public class MainWindowViewModelTests
             Mock.Of<IUiDispatcher>(),
             Notifications.Object);
 
-        var logPanel = new LogPanelViewModel(new LogStore(), new FakeUiDispatcher(), Mock.Of<IClipboardService>());
+        var logStore = new LogStore();
+        var logPanel = new LogPanelViewModel(logStore, new FakeUiDispatcher(), Mock.Of<IClipboardService>());
+        var tunnelService = new Mock<ITunnelService>();
+        tunnelService.Setup(service => service.Status).Returns(new TunnelStatus(TunnelState.Disconnected, null));
+        StatusBar = new StatusBarViewModel(logStore, tunnelService.Object, Settings.Object, new FakeUiDispatcher());
 
         return new MainWindowViewModel(
             devices,
             tunnel,
             settings,
             logPanel,
+            StatusBar,
             Settings.Object,
             Diagnostics.Object,
             Notifications.Object);
@@ -122,6 +134,7 @@ public class MainWindowViewModelTests
                 Assert.That(viewModel.IsLogPanelOpen, Is.True);
                 Assert.That(viewModel.LogPanelRowHeight, Is.EqualTo(220));
                 Assert.That(Settings.Object.LogPanelOpen, Is.True);
+                Assert.That(StatusBar.IsLogVisible, Is.True);
             });
         }
 
@@ -137,6 +150,7 @@ public class MainWindowViewModelTests
             {
                 Assert.That(viewModel.LogPanelRowHeight, Is.Zero);
                 Assert.That(Settings.Object.LogPanelOpen, Is.False);
+                Assert.That(StatusBar.IsLogVisible, Is.False);
             });
         }
 

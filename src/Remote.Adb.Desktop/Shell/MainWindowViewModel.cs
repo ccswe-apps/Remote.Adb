@@ -42,6 +42,7 @@ public partial class MainWindowViewModel : ViewModelBase
         TunnelViewModel tunnel,
         SettingsViewModel settingsScreen,
         LogPanelViewModel logPanel,
+        StatusBarViewModel statusBar,
         ISettingsService settings,
         ISdkDiagnostics diagnostics,
         INotificationService notifications)
@@ -51,10 +52,12 @@ public partial class MainWindowViewModel : ViewModelBase
         _settings = settings;
 
         LogPanel = logPanel;
+        StatusBar = statusBar;
 
         // Restore the panel's persisted state through the fields, so restoring doesn't immediately re-save it.
         _isLogPanelOpen = settings.LogPanelOpen;
         _logPanelHeight = Math.Max(MinLogPanelHeight, settings.LogPanelHeight);
+        StatusBar.SetLogVisible(_isLogPanelOpen);
 
         Destinations =
         [
@@ -94,6 +97,9 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    /// <summary>The strip along the bottom of the window: tunnel state, last command, and the log toggle.</summary>
+    public StatusBarViewModel StatusBar { get; }
+
     /// <summary>Persists the log panel's current height. Called once a splitter drag completes, not per pixel.</summary>
     public void CommitLogPanelHeight()
     {
@@ -112,6 +118,7 @@ public partial class MainWindowViewModel : ViewModelBase
     partial void OnIsLogPanelOpenChanged(bool value)
     {
         _settings.LogPanelOpen = value;
+        StatusBar.SetLogVisible(value);
     }
 
     partial void OnSelectedDestinationChanged(NavigationDestination? value)

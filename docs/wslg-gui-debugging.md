@@ -104,7 +104,8 @@ xdotool windowactivate "$wid"; sleep 0.5
 ## 5. Click and scroll
 
 Window size is set in `Shell/MainWindow.axaml` and drawer width in `MainWindowViewModel.DrawerLength`; content is
-right of the drawer. The coordinates below are examples — locate targets from a screenshot first.
+right of the drawer, above the 28px status bar along the bottom (click it to open the log panel, which docks between
+the page and the status bar). The coordinates below are examples — locate targets from a screenshot first.
 
 - **Click a card body** (avoid the action buttons at the far right): `xdotool mousemove 550 63; xdotool click 1`
 - **Scroll** — the pointer must be **physically warped** over the scrollable area first; targeting by
@@ -182,3 +183,19 @@ pkill -f '[R]emote.Adb.Desktop.dll'
 - **A scrollable screen in the CCSWE `DrawerPage` must host its `ScrollViewer` in a `Panel`**, not a
   `DockPanel` — a `Panel` force-fills the `ScrollViewer` to a bounded viewport height; a `DockPanel`
   doesn't, so the scroll area runs taller than the window.
+
+---
+
+## 10. Driving it natively on Windows instead
+
+On a Windows host you can skip WSLg: launch the built `Remote.Adb.Desktop.exe`, click controls through
+**UI Automation** (`System.Windows.Automation` from PowerShell: find by `AutomationElement.NameProperty`, then
+`InvokePattern.Invoke()`), and capture the window with `PrintWindow`. Icon-only shell controls carry an
+`AutomationProperties.Name` for this (`Show / hide log` on the status bar, `Collapse / expand navigation` on the
+rail toggle); text buttons are found by their caption (e.g. `Refresh`).
+
+> **The app uses your real settings.** `SettingsStore` resolves `Environment.SpecialFolder.ApplicationData`, which
+> on Windows ignores an overridden `%APPDATA%` — so a test launch reads (and writes) the real
+> `%USERPROFILE%\AppData\Roaming\Remote.Adb\settings.json`. If `tunnelAutoConnect` is on, every launch opens the
+> real SSH tunnel (`pkill -x adb` on the remote, binds the forward). Back the file up, set `tunnelAutoConnect` to
+> `false` for the session, and restore it afterwards.
