@@ -46,7 +46,6 @@ public static class ServiceCollectionExtensions
             provider.GetRequiredService<ILogger<SettingsStore>>(),
             SettingsStore.ResolveFilePath(Environment.GetEnvironmentVariable)));
         services.AddSingleton<ISettingsService, SettingsService>();
-        services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<ITunnelService, TunnelService>();
         services.AddSingleton<IWirelessAdbService, WirelessAdbService>();
 

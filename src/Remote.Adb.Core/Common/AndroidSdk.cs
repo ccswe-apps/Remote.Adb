@@ -27,13 +27,13 @@ internal sealed class AndroidSdk : IAndroidSdk
     }
 
     /// <inheritdoc />
-    public string AdbPath => ResolveTool("platform-tools", Executable("adb"));
+    public string AdbPath => ResolveTool("platform-tools", ExecutableLocator.ExecutableName("adb"));
 
     /// <inheritdoc />
     public string AvdManagerPath => ResolveCmdlineTool(Script("avdmanager"));
 
     /// <inheritdoc />
-    public string EmulatorPath => ResolveTool("emulator", Executable("emulator"));
+    public string EmulatorPath => ResolveTool("emulator", ExecutableLocator.ExecutableName("emulator"));
 
     /// <inheritdoc />
     public string? JavaHome
@@ -79,8 +79,6 @@ internal sealed class AndroidSdk : IAndroidSdk
 
         return Path.Combine(home, "Android", "Sdk");
     }
-
-    private static string Executable(string name) => OperatingSystem.IsWindows() ? $"{name}.exe" : name;
 
     /// <summary>
     /// Orders cmdline-tools version folders newest first, comparing versions numerically (<c>16.0</c> before

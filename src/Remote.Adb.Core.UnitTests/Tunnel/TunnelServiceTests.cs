@@ -71,18 +71,9 @@ public class TunnelServiceTests
         return Service;
     }
 
-    // Moves the fake clock forward in small steps until `task` completes, yielding between steps so continuations
-    // scheduled on the thread pool run. The real-time bound is only a hang guard.
-    private protected async Task DriveAsync(Task task)
-    {
-        for (var i = 0; i < 10_000 && !task.IsCompleted; i++)
-        {
-            Clock.Advance(Step);
-            await Task.Yield();
-        }
-
-        await task.WaitAsync(TimeSpan.FromSeconds(5));
-    }
+    // Moves the fake clock forward in small steps until `task` completes (the shared helper lets thread-pool
+    // continuations settle between steps).
+    private protected Task DriveAsync(Task task) => Clock.AdvanceUntilCompleteAsync(task, Step, maxSteps: 10_000);
 
     private protected async Task<TunnelStatus> DriveUntilAsync(Task<TunnelStatus> waiter)
     {

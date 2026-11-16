@@ -130,7 +130,7 @@ Pattern: a full-bleed scroll container (no margin/padding) → scrolled content 
 
 - **Framework:** NUnit. **Mocking:** Moq.
 - Unit tests live in `Remote.Adb.Core.UnitTests` and `Remote.Adb.Desktop.UnitTests` (flat under `src/`, alongside the projects they test).
-- **Shared test helpers go in `Remote.Adb.Testing`:** `LoggerFake`, `RecordingLogger`, `AdbRunnerMock`, `FakeProcessSession`, and `FakeTimeProvider` (via `Microsoft.Extensions.TimeProvider.Testing`). Helpers that only make sense for one test project (e.g. Desktop's `FakeTimerFactory`, `FakeUiDispatcher`) stay in that project's `Fakes/`. Before writing a mock setup a second time, add it to a shared helper.
+- **Shared test helpers go in `Remote.Adb.Testing`:** `LoggerFake`, `RecordingLogger`, `AdbRunnerMock`, `ProcessRunnerMock`, `FakeProcessSession`, `FakeTimeProvider` (via `Microsoft.Extensions.TimeProvider.Testing`) and `AdvanceUntilCompleteAsync` to drive it. Helpers that only make sense for one test project (e.g. Desktop's `FakeTimerFactory`, `FakeUiDispatcher`) stay in that project's `Fakes/`. Before writing a mock setup a second time, add it to a shared helper.
 - Every NUnit test project references `NUnit.Analyzers` (`PrivateAssets=all`) and has a `Usings.cs` with `global using NUnit.Framework;`.
 - Follow AAA (Arrange, Act, Assert) — separate the sections with blank lines, NOT with `// Arrange` / `// Act` / `// Assert` comments.
 
