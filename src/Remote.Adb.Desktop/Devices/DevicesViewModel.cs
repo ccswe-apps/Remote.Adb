@@ -2,19 +2,21 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Remote.Adb.Core.Adb;
+using Remote.Adb.Core.Adb.Wireless;
 using Remote.Adb.Core.Common;
 using Remote.Adb.Core.Emulators;
 using Remote.Adb.Core.Logging;
 using Remote.Adb.Desktop.Common;
 using Remote.Adb.Desktop.Common.Notifications;
 using Remote.Adb.Desktop.Common.Threading;
+using Remote.Adb.Desktop.Devices.Wireless;
 
 namespace Remote.Adb.Desktop.Devices;
 
 /// <summary>
 /// The unified device page: lists virtual devices (AVDs, running or stopped) and physical/wireless devices in
-/// one auto-refreshing list. Virtual rows carry start/stop/delete/details; physical rows are read-only with a
-/// connection indicator.
+/// one auto-refreshing list. Virtual rows carry start/stop/delete/details; physical rows show a connection indicator,
+/// and wireless ones can be disconnected.
 /// </summary>
 public partial class DevicesViewModel : AutoRefreshingListViewModel
 {
@@ -36,6 +38,8 @@ public partial class DevicesViewModel : AutoRefreshingListViewModel
     private readonly IDeviceService _deviceService;
     private readonly IEmulatorService _emulatorService;
     private readonly IAvdProvisioningService _provisioning;
+    private readonly IWirelessAdbService _wireless;
+    private readonly IWirelessDeviceDialog _wirelessDialog;
 
     [ObservableProperty]
     private AvdDetailsViewModel? _selectedDetail;
@@ -48,6 +52,8 @@ public partial class DevicesViewModel : AutoRefreshingListViewModel
         AvdDetailsViewModelFactory detailsFactory,
         IAvdProvisioningService provisioning,
         IConfirmDialog confirmDialog,
+        IWirelessDeviceDialog wirelessDialog,
+        IWirelessAdbService wireless,
         INotificationService notifications,
         ITimerFactory timerFactory)
         : base(timerFactory, notifications, RefreshInterval)
@@ -59,6 +65,8 @@ public partial class DevicesViewModel : AutoRefreshingListViewModel
         _detailsFactory = detailsFactory;
         _provisioning = provisioning;
         _confirmDialog = confirmDialog;
+        _wirelessDialog = wirelessDialog;
+        _wireless = wireless;
 
         Devices.CollectionChanged += (_, _) => RaiseIsListEmptyChanged();
     }
@@ -71,6 +79,16 @@ public partial class DevicesViewModel : AutoRefreshingListViewModel
 
     // Don't fight an in-flight start poll: skip the background tick while an AVD is mid-launch.
     protected override bool SkipBackgroundTick => Devices.Any(device => device is { IsVirtual: true, IsStarting: true });
+
+    // Opens the "Add wireless device" dialog; if a device was connected, refresh so it shows up in the list.
+    [RelayCommand]
+    private async Task AddWirelessAsync()
+    {
+        if (await _wirelessDialog.ShowAsync())
+        {
+            await RefreshAsync(notifyOnError: true);
+        }
+    }
 
     // Opens the create wizard; if an AVD was created, refresh so it shows up in the list.
     [RelayCommand]
@@ -119,6 +137,31 @@ public partial class DevicesViewModel : AutoRefreshingListViewModel
         }
     }
 
+    // Disconnects a wireless device (which also stops it being reconnected automatically) and refreshes the list.
+    [RelayCommand]
+    private async Task DisconnectAsync(DeviceRowViewModel? device)
+    {
+        if (device?.Serial is null || !device.IsWireless)
+        {
+            return;
+        }
+
+        try
+        {
+            var result = await _wireless.DisconnectAsync(device.Serial);
+            if (!result.Success)
+            {
+                NotifyError("Couldn't disconnect", result.Message);
+            }
+
+            await RefreshAsync(notifyOnError: true);
+        }
+        catch (ProcessLaunchException exception)
+        {
+            NotifyError("Couldn't disconnect", exception.Message);
+        }
+    }
+
     // Lists AVDs and adb devices concurrently, drops the running emulators from the adb list (they're already
     // represented by AVD rows), then reconciles each source into its own rows and reorders the whole list.
     protected override async Task LoadAsync()
@@ -141,7 +184,7 @@ public partial class DevicesViewModel : AutoRefreshingListViewModel
             device => "dev:" + device.Serial,
             row => row.IdentityKey,
             row => row.IsPhysical,
-            device => new DeviceRowViewModel(device),
+            device => new DeviceRowViewModel(device, DisconnectCommand),
             (row, device) => row.Update(device));
     }
 

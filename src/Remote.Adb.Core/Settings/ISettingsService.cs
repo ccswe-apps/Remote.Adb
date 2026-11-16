@@ -39,4 +39,7 @@ public interface ISettingsService
 
     /// <summary>The remote port the tunnel binds (the port the remote adb client connects to).</summary>
     int TunnelRemotePort { get; set; }
+
+    /// <summary>Wireless device addresses (<c>host:port</c>) to reconnect whenever the local adb server restarts.</summary>
+    IReadOnlyList<string> WirelessAddresses { get; set; }
 }

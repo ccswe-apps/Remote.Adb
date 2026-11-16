@@ -144,6 +144,21 @@ public sealed class SettingsService : ISettingsService
         }
     }
 
+    public IReadOnlyList<string> WirelessAddresses
+    {
+        get => _model.WirelessAddresses;
+        set
+        {
+            if (_model.WirelessAddresses.SequenceEqual(value))
+            {
+                return;
+            }
+
+            _model.WirelessAddresses = [.. value];
+            _store.Save(_model);
+        }
+    }
+
     // A blank or whitespace path means "no override" — store it as null so it round-trips as absent.
     private static string? Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 

@@ -1,11 +1,13 @@
 using System.Diagnostics.CodeAnalysis;
 using Moq;
 using Remote.Adb.Core.Adb;
+using Remote.Adb.Core.Adb.Wireless;
 using Remote.Adb.Core.Common;
 using Remote.Adb.Core.Emulators;
 using Remote.Adb.Desktop.Common;
 using Remote.Adb.Desktop.Common.Notifications;
 using Remote.Adb.Desktop.Devices;
+using Remote.Adb.Desktop.Devices.Wireless;
 using Remote.Adb.Desktop.UnitTests.Fakes;
 
 namespace Remote.Adb.Desktop.UnitTests.Devices;
@@ -17,6 +19,8 @@ public class DevicesViewModelTests
     protected Mock<IEmulatorService> EmulatorService = null!;
     protected Mock<INotificationService> Notifications = null!;
     protected FakeTimerFactory TimerFactory = null!;
+    protected Mock<IWirelessAdbService> Wireless = null!;
+    protected Mock<IWirelessDeviceDialog> WirelessDialog = null!;
 
     [SetUp]
     public void SetUp()
@@ -33,6 +37,8 @@ public class DevicesViewModelTests
 
         Notifications = new Mock<INotificationService>();
         TimerFactory = new FakeTimerFactory();
+        Wireless = new Mock<IWirelessAdbService>();
+        WirelessDialog = new Mock<IWirelessDeviceDialog>();
     }
 
     protected static AdbDevice Physical(string serial, string? model = null, string state = "device") =>
@@ -49,6 +55,8 @@ public class DevicesViewModelTests
         (_, _) => null!,
         Mock.Of<IAvdProvisioningService>(),
         Mock.Of<IConfirmDialog>(),
+        WirelessDialog.Object,
+        Wireless.Object,
         Notifications.Object,
         TimerFactory);
 
@@ -198,6 +206,109 @@ public class DevicesViewModelTests
                     It.IsAny<TimeSpan?>(),
                     It.IsAny<Action?>()),
                 Times.Once);
+        }
+    }
+
+    public class When_AddWirelessCommand_Is_Executed : DevicesViewModelTests
+    {
+        [Test]
+        public async Task It_refreshes_when_a_device_was_connected()
+        {
+            WirelessDialog.Setup(dialog => dialog.ShowAsync()).ReturnsAsync(true);
+            var viewModel = CreateViewModel();
+
+            await viewModel.AddWirelessCommand.ExecuteAsync(null);
+
+            DeviceService.Verify(service => service.ListAsync(It.IsAny<CancellationToken>()), Times.Once);
+        }
+
+        [Test]
+        public async Task It_does_not_refresh_when_cancelled()
+        {
+            WirelessDialog.Setup(dialog => dialog.ShowAsync()).ReturnsAsync(false);
+            var viewModel = CreateViewModel();
+
+            await viewModel.AddWirelessCommand.ExecuteAsync(null);
+
+            DeviceService.Verify(service => service.ListAsync(It.IsAny<CancellationToken>()), Times.Never);
+        }
+    }
+
+    public class When_DisconnectCommand_Is_Executed : DevicesViewModelTests
+    {
+        [Test]
+        public async Task It_disconnects_a_wireless_row_by_serial()
+        {
+            DeviceService
+                .Setup(service => service.ListAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new[] { Physical("192.168.1.20:5555", "Pixel") });
+            Wireless
+                .Setup(wireless => wireless.DisconnectAsync("192.168.1.20:5555", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new WirelessResult(true, "disconnected 192.168.1.20:5555"));
+            var viewModel = CreateViewModel();
+            await viewModel.OnActivatedAsync();
+
+            await viewModel.DisconnectCommand.ExecuteAsync(viewModel.Devices.Single());
+
+            Wireless.Verify(wireless => wireless.DisconnectAsync("192.168.1.20:5555", It.IsAny<CancellationToken>()), Times.Once);
+        }
+
+        [Test]
+        public async Task It_ignores_a_usb_row()
+        {
+            DeviceService
+                .Setup(service => service.ListAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new[] { Physical("R58M123ABC", "Galaxy") });
+            var viewModel = CreateViewModel();
+            await viewModel.OnActivatedAsync();
+
+            await viewModel.DisconnectCommand.ExecuteAsync(viewModel.Devices.Single());
+
+            Wireless.Verify(wireless => wireless.DisconnectAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        }
+
+        [Test]
+        public async Task It_shows_an_error_when_adb_refuses()
+        {
+            DeviceService
+                .Setup(service => service.ListAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new[] { Physical("192.168.1.20:5555", "Pixel") });
+            Wireless
+                .Setup(wireless => wireless.DisconnectAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new WirelessResult(false, "error: no such device"));
+            var viewModel = CreateViewModel();
+            await viewModel.OnActivatedAsync();
+
+            await viewModel.DisconnectCommand.ExecuteAsync(viewModel.Devices.Single());
+
+            Notifications.Verify(
+                notifications => notifications.Show("Couldn't disconnect", "error: no such device", NotificationSeverity.Error, It.IsAny<TimeSpan?>(), It.IsAny<Action?>()),
+                Times.Once);
+        }
+    }
+
+    public class When_Rows_Are_Built : DevicesViewModelTests
+    {
+        [Test]
+        public async Task It_offers_an_overflow_for_wireless_and_virtual_rows_but_not_usb()
+        {
+            EmulatorService
+                .Setup(service => service.ListAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new[] { Virtual("Pixel_8") });
+            DeviceService
+                .Setup(service => service.ListAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new[] { Physical("192.168.1.20:5555", "Wireless"), Physical("R58M123ABC", "Usb") });
+            var viewModel = CreateViewModel();
+
+            await viewModel.OnActivatedAsync();
+
+            var overflow = viewModel.Devices.ToDictionary(row => row.DisplayName, row => row.HasOverflow);
+            Assert.That(overflow, Is.EquivalentTo(new Dictionary<string, bool>
+            {
+                ["Pixel_8"] = true,
+                ["Wireless"] = true,
+                ["Usb"] = false,
+            }));
         }
     }
 

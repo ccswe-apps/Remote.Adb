@@ -12,7 +12,7 @@
 
             <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*,Auto" Margin="24,12,24,0">
                 <Button Grid.Column="0" Classes="Text" Content="Add Virtual Device" Command="{Binding CreateCommand}"/>
-                <Button Grid.Column="1" Classes="Text" Content="Add Wireless Device" IsEnabled="False" ToolTip.Tip="Coming soon"/>
+                <Button Grid.Column="1" Classes="Text" Content="Add Wireless Device" Command="{Binding AddWirelessCommand}"/>
                 <Button Grid.Column="3" Classes="Text" Content="Refresh" Command="{Binding RefreshCommand}"/>
             </Grid>
 

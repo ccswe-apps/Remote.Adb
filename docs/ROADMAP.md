@@ -21,16 +21,16 @@ manual scripts and steps.
 
 | Milestone | Notes |
 |-----------|-------|
+| **Wireless devices: discovery, QR pairing, Wi-Fi from USB** | Pillar 3. [tasks/wireless-devices.md](tasks/wireless-devices.md); connecting by address and pairing with a code are in — what's left is picking a device from mDNS discovery, QR-code pairing, and switching a USB device to Wi-Fi. |
 | **SDK Manager UI** (list / download / remove system images & packages via `sdkmanager`) | [tasks/sdk-manager.md](tasks/sdk-manager.md); unblocks creating from a not-yet-installed image. |
 | **DI lifetimes / stop manual construction** | [tasks/di-lifetimes.md](tasks/di-lifetimes.md); deferred until a concrete driver — scope view models to their owning window/view and resolve currently-`new`'d dialog windows/VMs from DI. |
-| **Remote device connection** over network | Pillar 3. The Devices page now *lists* attached devices (`adb devices -l`); the remaining work is connecting to a device over the network (e.g. `adb connect host:port`). |
 
 ## Working notes
 
 - All domain logic lives in `Remote.Adb.Core`; the GUI and CLI are thin shells that resolve services
   from DI (`AddRemoteAdbCore()`). New capability lands in Core first, then is surfaced in both heads.
-- Pillars 1 (SSH reverse tunnel) and 2 (emulator management) have landed; the Devices page lists
-  attached devices, leaving network *connect* (Pillar 3) as the open pillar. See the "SSH/adb
+- Pillars 1 (SSH reverse tunnel) and 2 (emulator management) have landed, and Pillar 3 can now connect and
+  pair devices over the network; its discovery / QR / USB-to-Wi-Fi conveniences remain. See the "SSH/adb
   constraints the tunnel must preserve" section of `CLAUDE.md` for the hard-won SSH/adb details
   the tunnel implementation preserves.
 - To debug the desktop UI (catch runtime layout/XAML bugs a clean build misses), drive it under WSLg
