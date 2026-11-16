@@ -6,41 +6,44 @@ namespace Remote.Adb.Core.Adb;
 /// <inheritdoc />
 internal sealed class DeviceDetailsResolver : IDeviceDetailsResolver
 {
-    private static readonly IReadOnlyList<string> Properties =
-    [
-        "ro.kernel.qemu",
-        "ro.boot.qemu.avd_name",
-        "ro.build.characteristics",
-        "ro.product.model",
-        "ro.product.marketing.name",
-        "ro.product.vendor.marketname",
-        "ro.build.version.sdk",
-        "ro.product.cpu.abi",
-    ];
+    // One shell round-trip reads every prop as `key=value` lines (values may contain spaces, never newlines).
+    private static readonly string GetpropScript = string.Join(
+        "; ",
+        new[]
+        {
+            "ro.kernel.qemu",
+            "ro.boot.qemu.avd_name",
+            "ro.build.characteristics",
+            "ro.product.model",
+            "ro.product.marketing.name",
+            "ro.product.vendor.marketname",
+            "ro.build.version.sdk",
+            "ro.product.cpu.abi",
+        }.Select(property => $"echo {property}=$(getprop {property})"));
 
     private readonly IAdbRunner _adb;
-    private readonly ConcurrentDictionary<string, DeviceDetails> _cache = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<(string Serial, string? TransportId), DeviceDetails> _cache = new();
 
     public DeviceDetailsResolver(IAdbRunner adb)
     {
         _adb = adb;
     }
 
+    private static (string Serial, string? TransportId) KeyOf(AdbDevice device) => (device.Serial, device.TransportId);
+
     /// <inheritdoc />
-    public async Task<DeviceDetails?> ResolveAsync(string serial, CancellationToken cancellationToken = default)
+    public async Task<DeviceDetails?> ResolveAsync(AdbDevice device, CancellationToken cancellationToken = default)
     {
-        if (_cache.TryGetValue(serial, out var cached))
+        var key = KeyOf(device);
+        if (_cache.TryGetValue(key, out var cached))
         {
             return cached;
         }
 
-        // One shell round-trip reads every prop as `key=value` lines (values may contain spaces, never newlines).
-        var script = string.Join("; ", Properties.Select(property => $"echo {property}=$(getprop {property})"));
-
         ProcessResult result;
         try
         {
-            result = await _adb.RunAsync(["-s", serial, "shell", script], cancellationToken: cancellationToken);
+            result = await _adb.RunAsync(["-s", device.Serial, "shell", GetpropScript], cancellationToken: cancellationToken);
         }
         catch (ProcessLaunchException)
         {
@@ -52,8 +55,21 @@ internal sealed class DeviceDetailsResolver : IDeviceDetailsResolver
             return null;
         }
 
-        var details = DeviceDetailsParser.Build(serial, result.StandardOutput);
-        _cache[serial] = details;
+        var details = DeviceDetailsParser.Build(device.Serial, result.StandardOutput);
+        _cache[key] = details;
         return details;
+    }
+
+    /// <inheritdoc />
+    public void Retain(IReadOnlyCollection<AdbDevice> onlineDevices)
+    {
+        var listed = onlineDevices.Select(KeyOf).ToHashSet();
+        foreach (var key in _cache.Keys)
+        {
+            if (!listed.Contains(key))
+            {
+                _cache.TryRemove(key, out _);
+            }
+        }
     }
 }
