@@ -28,13 +28,12 @@ manual scripts and steps.
 
 - All domain logic lives in `Remote.Adb.Core`; the GUI and CLI are thin shells that resolve services
   from DI (`AddRemoteAdbCore()`). New capability lands in Core first, then is surfaced in both heads.
-- All three pillars have landed: the SSH reverse tunnel, emulator management, and network device connection
-  (connect, pair by code or QR, discovery, USB-to-Wi-Fi). See the "SSH/adb constraints" section of `CLAUDE.md`
-  for the hard-won SSH/adb details the implementation preserves.
+- See the "SSH/adb constraints" section of `CLAUDE.md` for the hard-won SSH/adb details the tunnel implementation
+  must preserve.
 - To debug the desktop UI (catch runtime layout/XAML bugs a clean build misses), drive it under WSLg
   with screenshots — see [wslg-gui-debugging.md](wslg-gui-debugging.md) and the reproducible data
   harness at [tools/setup-fake-avd-harness.sh](tools/setup-fake-avd-harness.sh).
 - Possible enhancement: **one device, several rows.** A phone can show up as its USB serial, as `ip:port`, and as
   `adb-<guid>._adb-tls-connect._tcp` at once; grouping rows by `ro.serialno` would collapse them.
 - Possible enhancement: expose the list auto-refresh interval (currently the `DevicesViewModel.RefreshInterval`
-  constant) as a persisted setting.
+  static readonly field) as a persisted setting.
