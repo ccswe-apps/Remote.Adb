@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
 using Remote.Adb.Core.Common;
 using Remote.Adb.Core.Logging;
 using Remote.Adb.Desktop.Common.Notifications;
@@ -17,23 +18,23 @@ public abstract partial class AutoRefreshingListViewModel : ViewModelBase, IActi
     private bool _loadFailed;
     private readonly PeriodicRefresher _refresher;
 
-    protected AutoRefreshingListViewModel(ITimerFactory timerFactory, INotificationService notifications, TimeSpan refreshInterval)
+    protected AutoRefreshingListViewModel(ITimerFactory timerFactory, INotificationService notifications, TimeSpan refreshInterval, ILogger logger)
     {
         Notifications = notifications;
 
         // Background tick: re-list silently (no toast spam on a persistent failure).
-        _refresher = new PeriodicRefresher(timerFactory, refreshInterval, () => LoadAndReportAsync(notifyOnError: false))
+        _refresher = new PeriodicRefresher(timerFactory, refreshInterval, () => LoadAndReportAsync(notifyOnError: false), logger)
         {
             SkipTick = () => SkipBackgroundTick,
         };
     }
 
+    /// <summary>Whether the row collection is currently empty.</summary>
+    protected abstract bool IsEmpty { get; }
+
     // The full-page empty state shows only once the first load has settled with nothing to show (not before a
     // load, and not masking a load error) — independent of the transient refresh flag so a tick doesn't flash it.
     public bool IsListEmpty => _hasLoaded && !_loadFailed && IsEmpty;
-
-    /// <summary>Whether the row collection is currently empty.</summary>
-    protected abstract bool IsEmpty { get; }
 
     /// <summary>The toast title shown when a user-initiated refresh fails.</summary>
     protected abstract string LoadErrorTitle { get; }
@@ -88,7 +89,8 @@ public abstract partial class AutoRefreshingListViewModel : ViewModelBase, IActi
     /// <summary>Re-evaluate <see cref="IsListEmpty"/>; derived pages call this from their collection's change event.</summary>
     protected void RaiseIsListEmptyChanged() => OnPropertyChanged(nameof(IsListEmpty));
 
-    // Shares the refresher's reentrancy guard, so a manual refresh and a tick never overlap.
+    // Shares the refresher's reentrancy guard, so a manual refresh and a tick never overlap; a manual refresh during a
+    // tick runs as one follow-up pass rather than being dropped.
     protected Task RefreshAsync(bool notifyOnError) => _refresher.RunAsync(() => LoadAndReportAsync(notifyOnError));
 
     [RelayCommand]

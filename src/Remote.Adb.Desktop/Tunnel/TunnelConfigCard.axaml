@@ -11,19 +11,20 @@
         <StackPanel Spacing="16">
             <TextBlock Text="Connection" Classes="TitleMedium" Foreground="{DynamicResource OnSurface}"/>
 
-            <StackPanel Spacing="4">
-                <TextBlock Text="Remote host" Classes="BodySmall" Foreground="{DynamicResource OnSurfaceVariant}"/>
-                <TextBox Text="{Binding RemoteHost}" PlaceholderText="host or user@host"/>
+            <StackPanel Classes="Field">
+                <TextBlock Classes="FieldLabel" Text="Remote host"/>
+                <TextBox Text="{Binding RemoteHost, UpdateSourceTrigger=LostFocus}" PlaceholderText="host or user@host"
+                         AutomationProperties.Name="Remote host"/>
             </StackPanel>
 
             <Grid ColumnDefinitions="*,16,*">
-                <StackPanel Grid.Column="0" Spacing="4">
-                    <TextBlock Text="Remote port" Classes="BodySmall" Foreground="{DynamicResource OnSurfaceVariant}"/>
-                    <TextBox Text="{Binding RemotePort}"/>
+                <StackPanel Grid.Column="0" Classes="Field">
+                    <TextBlock Classes="FieldLabel" Text="Remote port"/>
+                    <TextBox Text="{Binding RemotePort, UpdateSourceTrigger=LostFocus}" AutomationProperties.Name="Remote port"/>
                 </StackPanel>
-                <StackPanel Grid.Column="2" Spacing="4">
-                    <TextBlock Text="Local port" Classes="BodySmall" Foreground="{DynamicResource OnSurfaceVariant}"/>
-                    <TextBox Text="{Binding LocalPort}"/>
+                <StackPanel Grid.Column="2" Classes="Field">
+                    <TextBlock Classes="FieldLabel" Text="Local port"/>
+                    <TextBox Text="{Binding LocalPort, UpdateSourceTrigger=LostFocus}" AutomationProperties.Name="Local port"/>
                 </StackPanel>
             </Grid>
 

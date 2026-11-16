@@ -1,6 +1,6 @@
 using Avalonia.Controls;
 
-namespace Remote.Adb.Desktop.Common;
+namespace Remote.Adb.Desktop.Devices;
 
 public partial class PropertyRow : UserControl
 {

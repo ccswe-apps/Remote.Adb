@@ -13,11 +13,6 @@ namespace Remote.Adb.Desktop.Tunnel;
 public partial class TunnelViewModel : ViewModelBase, IActivatable
 {
     private readonly IAdbServerService _adbServer;
-    private readonly INotificationService _notifications;
-    private readonly ISettingsService _settings;
-    private readonly ITunnelService _tunnel;
-    private readonly IUiDispatcher _uiDispatcher;
-    private bool _subscribed;
 
     [ObservableProperty]
     private bool _autoConnect;
@@ -25,12 +20,19 @@ public partial class TunnelViewModel : ViewModelBase, IActivatable
     [ObservableProperty]
     private int _localPort;
 
-    [ObservableProperty]
-    private int _remotePort;
+    private readonly INotificationService _notifications;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ConnectCommand))]
     private string? _remoteHost;
+
+    [ObservableProperty]
+    private int _remotePort;
+
+    private readonly ISettingsService _settings;
+    private bool _subscribed;
+    private readonly ITunnelService _tunnel;
+    private readonly IUiDispatcher _uiDispatcher;
 
     public TunnelViewModel(ITunnelService tunnel, IAdbServerService adbServer, ISettingsService settings, IUiDispatcher uiDispatcher, INotificationService notifications)
     {

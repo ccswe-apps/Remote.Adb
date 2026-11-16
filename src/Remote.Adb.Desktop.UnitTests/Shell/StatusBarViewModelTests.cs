@@ -186,4 +186,23 @@ public class StatusBarViewModelTests
             });
         }
     }
+
+    public class When_Created : StatusBarViewModelTests
+    {
+        [Test]
+        public void It_counts_the_problems_logged_before_it_existed()
+        {
+            Store.Add(LogLevel.Warning, "Test", new EventId(0), "first", null);
+            Store.Add(LogLevel.Information, "Test", new EventId(0), "fine", null);
+            Store.Add(LogLevel.Error, "Test", new EventId(0), "second", null);
+
+            var viewModel = CreateViewModel();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(viewModel.UnseenProblemCount, Is.EqualTo(2));
+                Assert.That(viewModel.HasUnseenProblems, Is.True);
+            });
+        }
+    }
 }

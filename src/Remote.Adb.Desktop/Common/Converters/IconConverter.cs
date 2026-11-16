@@ -2,21 +2,20 @@ using System.Globalization;
 using Avalonia;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
-using Remote.Adb.Core.Adb;
 
 namespace Remote.Adb.Desktop.Common.Converters;
 
 /// <summary>
-/// Maps a physical device's <see cref="DeviceConnection"/> to a Phosphor glyph from <c>Themes/Icons.axaml</c>:
-/// a USB mark for a wired device, a wifi mark for a wireless one.
+/// Base for the converters that pick a glyph: derived converters map the bound value to an icon's resource key, and
+/// this resolves the key to the <see cref="Geometry"/> registered under it in the application resources
+/// (<c>Themes/Icons.axaml</c>). One-way only.
 /// </summary>
-public sealed class DeviceConnectionToGeometryConverter : IValueConverter
+public abstract class IconConverter : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
-        var key = value is DeviceConnection.Wireless ? "IconWifiHigh" : "IconUsb";
-
-        if (Application.Current is { } application
+        if (KeyFor(value) is { } key
+            && Application.Current is { } application
             && application.TryGetResource(key, null, out var resource)
             && resource is Geometry geometry)
         {
@@ -28,4 +27,7 @@ public sealed class DeviceConnectionToGeometryConverter : IValueConverter
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         throw new NotSupportedException();
+
+    /// <summary>The resource key of the icon for <paramref name="value"/>, or <see langword="null"/> for none.</summary>
+    protected abstract string? KeyFor(object? value);
 }

@@ -21,13 +21,12 @@
                    IsVisible="{Binding Discovery.IsUnavailable}"
                    Text="QR pairing needs discovery on this network (see below). Use the pairing code instead."/>
 
-        <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsPairing}">
+        <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsBusy}">
             <ProgressBar Width="48" IsIndeterminate="True" VerticalAlignment="Center"/>
             <TextBlock Classes="BodySmall" Text="Pairing…" Foreground="{DynamicResource OnSurface}"/>
         </StackPanel>
 
-        <TextBlock Text="{Binding ErrorMessage}" Classes="BodySmall" Foreground="{DynamicResource Error}" TextWrapping="Wrap"
-                   IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+        <TextBlock Classes="ErrorText" Text="{Binding ErrorMessage}"/>
     </StackPanel>
 
 </UserControl>

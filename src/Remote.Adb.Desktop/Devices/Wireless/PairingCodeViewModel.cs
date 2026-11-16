@@ -1,8 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Remote.Adb.Core.Adb.Wireless;
-using Remote.Adb.Core.Common;
-using Remote.Adb.Desktop.Common;
 
 namespace Remote.Adb.Desktop.Devices.Wireless;
 
@@ -10,18 +8,11 @@ namespace Remote.Adb.Desktop.Devices.Wireless;
 /// The "Pair" tab: pairs an Android 11+ device using the address and six-digit code from its Wireless debugging
 /// "Pair device with pairing code" dialog.
 /// </summary>
-public sealed partial class PairingCodeViewModel : ViewModelBase
+public sealed partial class PairingCodeViewModel : FormViewModelBase
 {
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(PairCommand))]
     private string _code = string.Empty;
-
-    [ObservableProperty]
-    private string? _errorMessage;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(PairCommand))]
-    private bool _isBusy;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(PairCommand))]
@@ -37,32 +28,19 @@ public sealed partial class PairingCodeViewModel : ViewModelBase
     /// <summary>Raised when pairing succeeds, whether or not the device then connected.</summary>
     public event Action<WirelessPairResult>? Paired;
 
-    private bool CanPair() => !IsBusy && !string.IsNullOrWhiteSpace(PairingAddress) && !string.IsNullOrWhiteSpace(Code);
+    // The command itself is disabled while it runs (no concurrent executions), so busy needn't be checked here.
+    private bool CanPair() => !string.IsNullOrWhiteSpace(PairingAddress) && !string.IsNullOrWhiteSpace(Code);
 
     [RelayCommand(CanExecute = nameof(CanPair))]
-    private async Task PairAsync()
+    private Task PairAsync() => RunGuardedAsync(async () =>
     {
-        IsBusy = true;
-        ErrorMessage = null;
+        var result = await _wireless.PairAsync(PairingAddress, Code);
+        if (!result.Paired)
+        {
+            return $"{result.Message} Check the code and that the pairing dialog is still open on the device — it closes (and the code changes) after a short while.";
+        }
 
-        try
-        {
-            var result = await _wireless.PairAsync(PairingAddress, Code);
-            if (result.Paired)
-            {
-                Paired?.Invoke(result);
-                return;
-            }
-
-            ErrorMessage = $"{result.Message} Check the code and that the pairing dialog is still open on the device — it closes (and the code changes) after a short while.";
-        }
-        catch (ProcessLaunchException exception)
-        {
-            ErrorMessage = exception.Message;
-        }
-        finally
-        {
-            IsBusy = false;
-        }
-    }
+        Paired?.Invoke(result);
+        return null;
+    });
 }

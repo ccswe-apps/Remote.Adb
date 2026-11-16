@@ -18,6 +18,23 @@
             <Setter Property="BorderBrush" Value="{DynamicResource OutlineVariant}"/>
             <Setter Property="BorderThickness" Value="1"/>
         </Style>
+
+        <!-- Form conventions, defined once so every form matches:
+             a field is a label over its input (StackPanel.Field + TextBlock.FieldLabel), and a form's inline error
+             line is a TextBlock.ErrorText bound to the message — it hides itself while the message is empty. -->
+        <Style Selector="StackPanel.Field">
+            <Setter Property="Spacing" Value="4"/>
+        </Style>
+        <Style Selector="TextBlock.FieldLabel">
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeBodySmall}"/>
+            <Setter Property="Foreground" Value="{DynamicResource OnSurfaceVariant}"/>
+        </Style>
+        <Style Selector="TextBlock.ErrorText">
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeBodySmall}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Error}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="IsVisible" Value="{Binding $self.Text, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+        </Style>
     </Application.Styles>
 
     <Application.Resources>

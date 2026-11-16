@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Remote.Adb.Core;
 using Remote.Adb.Core.Emulators;
 using Remote.Adb.Desktop.Common;
+using Remote.Adb.Desktop.Common.Diagnostics;
 using Remote.Adb.Desktop.Common.Notifications;
 using Remote.Adb.Desktop.Common.Threading;
 using Remote.Adb.Desktop.Devices;
@@ -35,6 +36,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAvdCreateDialog, AvdCreateDialog>();
         services.AddSingleton<NotificationService>();
         services.AddSingleton<INotificationService>(provider => provider.GetRequiredService<NotificationService>());
+        services.AddSingleton<IUnhandledExceptionReporter, UnhandledExceptionReporter>();
 
         // A fresh details VM per row, with its store resolved from DI and the configuration/back callback passed in.
         services.AddSingleton<AvdDetailsViewModelFactory>(provider =>
@@ -56,10 +58,13 @@ public static class ServiceCollectionExtensions
         services.AddTransient<MainWindow>();
         services.AddTransient<MainWindowViewModel>();
         services.AddTransient<DevicesViewModel>();
-        services.AddTransient<LogPanelViewModel>();
         services.AddTransient<TunnelViewModel>();
         services.AddTransient<SettingsViewModel>();
-        services.AddTransient<StatusBarViewModel>();
+
+        // One per app, for its lifetime: both subscribe to app-wide event sources (the log store, the tunnel) and
+        // unsubscribe on Dispose, which the container does at shutdown.
+        services.AddSingleton<LogPanelViewModel>();
+        services.AddSingleton<StatusBarViewModel>();
 
         // The three page views the ViewLocator resolves through DI; every other view is instantiated by XAML.
         services.AddTransient<DevicesView>();

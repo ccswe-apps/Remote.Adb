@@ -3,7 +3,7 @@ namespace Remote.Adb.Desktop.Common.Notifications;
 /// <inheritdoc />
 public sealed class NotificationService : INotificationService
 {
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private readonly List<NotificationRequest> _pending = [];
     private INotificationSink? _sink;
 

@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
 using Remote.Adb.Core.Adb;
 using Remote.Adb.Core.Adb.Wireless;
 using Remote.Adb.Core.Common;
@@ -18,18 +19,18 @@ namespace Remote.Adb.Desktop.Devices;
 /// one auto-refreshing list. Virtual rows carry start/stop/delete/details; physical rows show a connection indicator,
 /// and wireless ones can be disconnected.
 /// </summary>
+/// <remarks>
+/// Row commands take the row as their parameter and allow concurrent executions — starting one AVD must not disable
+/// Start on every other row for the minutes its launch takes. Each row guards itself (<see cref="DeviceRowViewModel.IsStarting"/>,
+/// <see cref="DeviceRowViewModel.IsBusy"/>) against a second action on the same row.
+/// </remarks>
 public partial class DevicesViewModel : AutoRefreshingListViewModel
 {
     private const string EmulatorSerialPrefix = "emulator-";
 
-    // A launched AVD takes a while to register with adb. Poll for it to come up, and stop waiting after the
-    // timeout so a row can't get stuck in the "starting" state forever.
-    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(2);
-
     // Background re-list cadence while the page is live, so external start/stop/create or a device plugged/
     // unplugged shows up without a manual refresh. Listing shells out to adb/emulator, so keep it modest.
     private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(5);
-    private static readonly TimeSpan StartTimeout = TimeSpan.FromMinutes(3);
 
     private readonly IAvdConfigStore _configStore;
     private readonly IConfirmDialog _confirmDialog;
@@ -38,11 +39,13 @@ public partial class DevicesViewModel : AutoRefreshingListViewModel
     private readonly IDeviceService _deviceService;
     private readonly IEmulatorService _emulatorService;
     private readonly IAvdProvisioningService _provisioning;
-    private readonly IWirelessAdbService _wireless;
-    private readonly IWirelessDeviceDialog _wirelessDialog;
 
     [ObservableProperty]
     private AvdDetailsViewModel? _selectedDetail;
+
+    private readonly TimeProvider _timeProvider;
+    private readonly IWirelessAdbService _wireless;
+    private readonly IWirelessDeviceDialog _wirelessDialog;
 
     public DevicesViewModel(
         IEmulatorService emulatorService,
@@ -55,8 +58,10 @@ public partial class DevicesViewModel : AutoRefreshingListViewModel
         IWirelessDeviceDialog wirelessDialog,
         IWirelessAdbService wireless,
         INotificationService notifications,
-        ITimerFactory timerFactory)
-        : base(timerFactory, notifications, RefreshInterval)
+        ITimerFactory timerFactory,
+        TimeProvider timeProvider,
+        ILogger<DevicesViewModel> logger)
+        : base(timerFactory, notifications, RefreshInterval, logger)
     {
         _emulatorService = emulatorService;
         _deviceService = deviceService;
@@ -67,6 +72,7 @@ public partial class DevicesViewModel : AutoRefreshingListViewModel
         _confirmDialog = confirmDialog;
         _wirelessDialog = wirelessDialog;
         _wireless = wireless;
+        _timeProvider = timeProvider;
 
         Devices.CollectionChanged += (_, _) => RaiseIsListEmptyChanged();
     }
@@ -77,8 +83,14 @@ public partial class DevicesViewModel : AutoRefreshingListViewModel
 
     protected override string LoadErrorTitle => "Couldn't list devices";
 
+    /// <summary>How often a just-launched AVD is re-listed while waiting for it to register with adb.</summary>
+    internal TimeSpan PollInterval { get; init; } = TimeSpan.FromSeconds(2);
+
     // Don't fight an in-flight start poll: skip the background tick while an AVD is mid-launch.
     protected override bool SkipBackgroundTick => Devices.Any(device => device is { IsVirtual: true, IsStarting: true });
+
+    /// <summary>How long a launch is waited on before the row leaves the "starting" state with a warning.</summary>
+    internal TimeSpan StartTimeout { get; init; } = TimeSpan.FromMinutes(3);
 
     // Opens the "Add wireless device" dialog; if a device was connected, refresh so it shows up in the list.
     [RelayCommand]
@@ -89,6 +101,9 @@ public partial class DevicesViewModel : AutoRefreshingListViewModel
             await RefreshAsync(notifyOnError: true);
         }
     }
+
+    [RelayCommand(AllowConcurrentExecutions = true)]
+    private Task ColdBootAsync(DeviceRowViewModel? device) => LaunchAsync(device, coldBoot: true);
 
     // Opens the create wizard; if an AVD was created, refresh so it shows up in the list.
     [RelayCommand]
@@ -120,7 +135,7 @@ public partial class DevicesViewModel : AutoRefreshingListViewModel
             return;
         }
 
-        try
+        await RunRowActionAsync("Delete failed", async () =>
         {
             if (!await _provisioning.DeleteAsync(device.Name))
             {
@@ -129,53 +144,41 @@ public partial class DevicesViewModel : AutoRefreshingListViewModel
             }
 
             SelectedDetail = null;
-            await RefreshAsync(notifyOnError: true);
-        }
-        catch (ProcessLaunchException exception)
-        {
-            NotifyError("Delete failed", exception.Message);
-        }
+        });
     }
 
     // Disconnects a wireless device (which also stops it being reconnected automatically) and refreshes the list.
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = true)]
     private async Task DisconnectAsync(DeviceRowViewModel? device)
     {
-        if (device?.Serial is null || !device.IsWireless)
+        if (device?.Serial is not { } serial || !device.IsWireless || device.IsBusy)
         {
             return;
         }
 
-        try
+        await RunBusyRowActionAsync(device, "Couldn't disconnect", async () =>
         {
-            var result = await _wireless.DisconnectAsync(device.Serial);
+            var result = await _wireless.DisconnectAsync(serial);
             if (!result.Success)
             {
                 NotifyError("Couldn't disconnect", result.Message);
             }
-
-            await RefreshAsync(notifyOnError: true);
-        }
-        catch (ProcessLaunchException exception)
-        {
-            NotifyError("Couldn't disconnect", exception.Message);
-        }
+        });
     }
 
     // Switches an online USB device to Wi-Fi debugging (tcpip, then connect — remembered for reconnects), then refreshes so
     // the new network row appears. Reports the partial case (switched, but unreachable) as a warning with what to check.
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = true)]
     private async Task EnableWirelessAsync(DeviceRowViewModel? device)
     {
-        if (device?.Serial is null || !device.IsUsb || device.IsBusy)
+        if (device?.Serial is not { } serial || !device.IsUsb || device.IsBusy)
         {
             return;
         }
 
-        device.IsBusy = true;
-        try
+        await RunBusyRowActionAsync(device, "Couldn't enable Wi-Fi debugging", async () =>
         {
-            var result = await _wireless.EnableWirelessAsync(device.Serial);
+            var result = await _wireless.EnableWirelessAsync(serial);
             switch (result.Outcome)
             {
                 case WirelessEnableOutcome.Connected:
@@ -191,16 +194,36 @@ public partial class DevicesViewModel : AutoRefreshingListViewModel
                     NotifyError("Couldn't enable Wi-Fi debugging", result.Message);
                     break;
             }
+        });
+    }
 
-            await RefreshAsync(notifyOnError: true);
-        }
-        catch (ProcessLaunchException exception)
+    // Shared launch flow for the normal start and cold-boot commands: guard, flip the row into the transient
+    // "starting" state, kick off the emulator, then poll until adb reports it running (or warn when it never does).
+    private async Task LaunchAsync(DeviceRowViewModel? device, bool coldBoot)
+    {
+        if (device is null || !device.IsVirtual || device.IsRunning || device.IsStarting)
         {
-            NotifyError("Couldn't enable Wi-Fi debugging", exception.Message);
+            return;
+        }
+
+        device.IsStarting = true;
+        try
+        {
+            await RunRowActionAsync("Couldn't start emulator", async () =>
+            {
+                await _emulatorService.StartAsync(device.Name, coldBoot);
+                if (!await WaitUntilRunningAsync(device))
+                {
+                    Notifications.Show(
+                        "Emulator didn't come up",
+                        $"{device.DisplayName} still isn't running after {StartTimeout.TotalMinutes:0} minutes. It may still be booting — refresh to check, or see the log.",
+                        NotificationSeverity.Warning);
+                }
+            }, refresh: false);
         }
         finally
         {
-            device.IsBusy = false;
+            device.IsStarting = false;
         }
     }
 
@@ -223,7 +246,7 @@ public partial class DevicesViewModel : AutoRefreshingListViewModel
 
         Devices.MergeByKind(
             physical,
-            device => "dev:" + device.Serial,
+            DeviceRowViewModel.KeyFor,
             row => row.IdentityKey,
             row => row.IsPhysical,
             device => new DeviceRowViewModel(device, DisconnectCommand, EnableWirelessCommand),
@@ -235,7 +258,7 @@ public partial class DevicesViewModel : AutoRefreshingListViewModel
     private void MergeVirtual(IReadOnlyList<AndroidVirtualDevice> devices) =>
         Devices.MergeByKind(
             devices,
-            device => "avd:" + device.Name,
+            DeviceRowViewModel.KeyFor,
             row => row.IdentityKey,
             row => row.IsVirtual,
             device => new DeviceRowViewModel(device, DeleteCommand, ColdBootCommand),
@@ -245,55 +268,57 @@ public partial class DevicesViewModel : AutoRefreshingListViewModel
     private void NotifyError(string title, string message) =>
         Notifications.Show(title, message, NotificationSeverity.Error);
 
-    [RelayCommand]
-    private Task ColdBootAsync(DeviceRowViewModel? device) => LaunchAsync(device, coldBoot: true);
-
-    // Shared launch flow for the normal start and cold-boot commands: guard, flip the row into the transient
-    // "starting" state, kick off the emulator, then poll until adb reports it running.
-    private async Task LaunchAsync(DeviceRowViewModel? device, bool coldBoot)
+    // A row action that marks its row busy while it runs, so the row's menu item is disabled meanwhile.
+    private async Task RunBusyRowActionAsync(DeviceRowViewModel device, string errorTitle, Func<Task> action)
     {
-        if (device is null || !device.IsVirtual || device.IsRunning || device.IsStarting)
-        {
-            return;
-        }
-
-        device.IsStarting = true;
-
+        device.IsBusy = true;
         try
         {
-            await _emulatorService.StartAsync(device.Name, coldBoot);
-            await WaitUntilRunningAsync(device);
-        }
-        catch (ProcessLaunchException exception)
-        {
-            NotifyError("Couldn't start emulator", exception.Message);
+            await RunRowActionAsync(errorTitle, action);
         }
         finally
         {
-            device.IsStarting = false;
+            device.IsBusy = false;
         }
     }
 
-    [RelayCommand]
+    // The shared shape of every row action: run it, refresh the list so the result shows (unless the action keeps the
+    // list current itself), and turn a missing tool into an error toast titled for the action.
+    private async Task RunRowActionAsync(string errorTitle, Func<Task> action, bool refresh = true)
+    {
+        try
+        {
+            await action();
+            if (refresh)
+            {
+                await RefreshAsync(notifyOnError: true);
+            }
+        }
+        catch (ProcessLaunchException exception)
+        {
+            NotifyError(errorTitle, exception.Message);
+        }
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = true)]
     private Task StartAsync(DeviceRowViewModel? device) => LaunchAsync(device, coldBoot: false);
 
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = true)]
     private async Task StopAsync(DeviceRowViewModel? device)
     {
-        if (device?.Serial is null || !device.IsVirtual)
+        if (device?.Serial is not { } serial || !device.IsVirtual || device.IsBusy)
         {
             return;
         }
 
-        try
+        await RunBusyRowActionAsync(device, "Couldn't stop emulator", async () =>
         {
-            await _emulatorService.StopAsync(device.Serial);
-            await RefreshAsync(notifyOnError: true);
-        }
-        catch (ProcessLaunchException exception)
-        {
-            NotifyError("Couldn't stop emulator", exception.Message);
-        }
+            var result = await _emulatorService.StopAsync(serial);
+            if (!result.Success)
+            {
+                NotifyError("Couldn't stop emulator", result.Error ?? $"adb couldn't stop {device.DisplayName}.");
+            }
+        });
     }
 
     // Opens the read-only details pane for an AVD row, loading its full config.ini via the store. The detail
@@ -316,27 +341,29 @@ public partial class DevicesViewModel : AutoRefreshingListViewModel
         SelectedDetail = _detailsFactory(configuration, () => SelectedDetail = null);
     }
 
-    // Polls adb until the just-launched AVD registers as running (flipping its row out of the "starting"
-    // state), or gives up after StartTimeout. Merges only the virtual rows so physical rows are preserved.
-    private async Task WaitUntilRunningAsync(DeviceRowViewModel device)
+    // Polls adb until the just-launched AVD registers as running (flipping its row out of the "starting" state),
+    // returning false if it hasn't after StartTimeout. Merges only the virtual rows so physical rows are preserved.
+    private async Task<bool> WaitUntilRunningAsync(DeviceRowViewModel device)
     {
-        var deadline = DateTime.UtcNow + StartTimeout;
+        var deadline = _timeProvider.GetUtcNow() + StartTimeout;
 
         // Polling for the launch to settle is routine; keep its re-lists out of the Information-level log.
         using var scope = CommandLogScope.Background();
 
-        while (DateTime.UtcNow < deadline)
+        while (_timeProvider.GetUtcNow() < deadline)
         {
-            await Task.Delay(PollInterval);
+            await Task.Delay(PollInterval, _timeProvider);
 
             var devices = await _emulatorService.ListAsync();
             MergeVirtual(devices);
             Devices.SortBy(row => row.SortKey);
 
-            if (devices.Any(d => d.Name == device.Name && d.IsRunning))
+            if (devices.Any(candidate => candidate.Name == device.Name && candidate.IsRunning))
             {
-                return;
+                return true;
             }
         }
+
+        return false;
     }
 }

@@ -27,7 +27,7 @@
                          disabled while a scanned code is pairing, so the two can't race. -->
                     <Grid ColumnDefinitions="Auto,24,*">
                         <wl:QrPairingView Grid.Column="0" DataContext="{Binding Qr}"/>
-                        <Panel Grid.Column="2" IsEnabled="{Binding !Qr.IsPairing}">
+                        <Panel Grid.Column="2" IsEnabled="{Binding !Qr.IsBusy}">
                             <wl:PairingCodeView DataContext="{Binding Pair}"/>
                         </Panel>
                     </Grid>

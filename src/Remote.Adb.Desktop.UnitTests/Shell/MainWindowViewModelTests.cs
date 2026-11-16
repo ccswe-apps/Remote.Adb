@@ -19,6 +19,8 @@ using Remote.Adb.Desktop.Shell;
 using Remote.Adb.Desktop.Theming;
 using Remote.Adb.Desktop.Tunnel;
 using Remote.Adb.Desktop.UnitTests.Fakes;
+using Microsoft.Extensions.Time.Testing;
+using Remote.Adb.Testing;
 
 namespace Remote.Adb.Desktop.UnitTests.Shell;
 
@@ -29,6 +31,7 @@ public class MainWindowViewModelTests
     private protected Mock<ISdkDiagnostics> Diagnostics = null!;
     private protected Mock<IEmulatorService> EmulatorService = null!;
     private protected Mock<INotificationService> Notifications = null!;
+    private protected RecordingExceptionReporter Reporter = null!;
     private protected Mock<ISettingsService> Settings = null!;
     private protected StatusBarViewModel StatusBar = null!;
 
@@ -49,6 +52,7 @@ public class MainWindowViewModelTests
         Diagnostics.Setup(diagnostics => diagnostics.Evaluate()).Returns(Array.Empty<ToolDiagnostic>());
 
         Notifications = new Mock<INotificationService>();
+        Reporter = new RecordingExceptionReporter();
 
         Settings = new Mock<ISettingsService>();
         Settings.SetupProperty(settings => settings.LogPanelOpen, false);
@@ -74,7 +78,9 @@ public class MainWindowViewModelTests
             Mock.Of<IWirelessDeviceDialog>(),
             Mock.Of<IWirelessAdbService>(),
             Notifications.Object,
-            new FakeTimerFactory());
+            new FakeTimerFactory(),
+            new FakeTimeProvider(),
+            new LoggerFake<DevicesViewModel>());
 
         var settings = new SettingsViewModel(
             Mock.Of<ISettingsService>(),
@@ -103,7 +109,8 @@ public class MainWindowViewModelTests
             StatusBar,
             Settings.Object,
             Diagnostics.Object,
-            Notifications.Object);
+            Notifications.Object,
+            Reporter);
     }
 
     private protected void VerifyListCount(Times times) =>
@@ -253,6 +260,34 @@ public class MainWindowViewModelTests
 
             viewModel.SelectedDestination = viewModel.Destinations.First(destination => destination.Label == "Devices");
             VerifyListCount(Times.Exactly(2));
+        }
+    }
+
+    public class When_Activation_Fails_Unexpectedly : MainWindowViewModelTests
+    {
+        [Test]
+        public void It_reports_the_failure_instead_of_dropping_it()
+        {
+            DeviceService
+                .Setup(service => service.ListAsync(It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new InvalidOperationException("boom"));
+
+            CreateViewModel();
+
+            Assert.That(Reporter.Reported.Single().Message, Is.EqualTo("boom"));
+        }
+    }
+
+    public class When_GoToSettingsCommand_Is_Executed : MainWindowViewModelTests
+    {
+        [Test]
+        public void It_selects_the_settings_destination()
+        {
+            var viewModel = CreateViewModel();
+
+            viewModel.GoToSettingsCommand.Execute(null);
+
+            Assert.That(viewModel.CurrentScreen, Is.InstanceOf<SettingsViewModel>());
         }
     }
 }

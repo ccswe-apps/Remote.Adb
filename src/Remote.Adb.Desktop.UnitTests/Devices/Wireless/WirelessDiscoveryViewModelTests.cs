@@ -3,6 +3,7 @@ using Moq;
 using Remote.Adb.Core.Adb.Wireless;
 using Remote.Adb.Desktop.Devices.Wireless;
 using Remote.Adb.Desktop.UnitTests.Fakes;
+using Remote.Adb.Testing;
 
 namespace Remote.Adb.Desktop.UnitTests.Devices.Wireless;
 
@@ -14,20 +15,17 @@ public class WirelessDiscoveryViewModelTests
     private protected static readonly MdnsService PairingService = new("adb-R58M-AbCd", MdnsServiceType.Pairing, "192.168.1.20", 37123);
 
     private protected FakeTimerFactory TimerFactory = null!;
-    private protected Mock<IWirelessAdbService> Wireless = null!;
+    private protected WirelessMock Wireless = null!;
 
     [SetUp]
     public void SetUp()
     {
         TimerFactory = new FakeTimerFactory();
-        Wireless = new Mock<IWirelessAdbService>();
-        Wireless.Setup(wireless => wireless.IsDiscoveryAvailableAsync(It.IsAny<CancellationToken>())).ReturnsAsync(true);
-        Wireless
-            .Setup(wireless => wireless.DiscoverAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new[] { PairingService, ConnectService, LegacyService });
+        Wireless = new WirelessMock();
+        Wireless.Discovers(PairingService, ConnectService, LegacyService);
     }
 
-    private protected WirelessDiscoveryViewModel CreateViewModel() => new(Wireless.Object, TimerFactory);
+    private protected WirelessDiscoveryViewModel CreateViewModel() => new(Wireless.Object, TimerFactory, new LoggerFake<WirelessDiscoveryViewModel>());
 
     public class When_StartAsync_Is_Called : WirelessDiscoveryViewModelTests
     {
@@ -50,7 +48,7 @@ public class WirelessDiscoveryViewModelTests
         [Test]
         public async Task It_marks_discovery_unavailable_and_does_not_poll()
         {
-            Wireless.Setup(wireless => wireless.IsDiscoveryAvailableAsync(It.IsAny<CancellationToken>())).ReturnsAsync(false);
+            Wireless.DiscoveryAvailable(false);
             var viewModel = CreateViewModel();
 
             await viewModel.StartAsync();
@@ -60,7 +58,7 @@ public class WirelessDiscoveryViewModelTests
                 Assert.That(viewModel.IsUnavailable, Is.True);
                 Assert.That(TimerFactory.Timer.IsRunning, Is.False);
             });
-            Wireless.Verify(wireless => wireless.DiscoverAsync(It.IsAny<CancellationToken>()), Times.Never);
+            Wireless.Inner.Verify(wireless => wireless.DiscoverAsync(It.IsAny<CancellationToken>()), Times.Never);
         }
 
         [Test]
@@ -71,7 +69,7 @@ public class WirelessDiscoveryViewModelTests
             await viewModel.StartAsync();
             await viewModel.StartAsync();
 
-            Wireless.Verify(wireless => wireless.IsDiscoveryAvailableAsync(It.IsAny<CancellationToken>()), Times.Once);
+            Wireless.Inner.Verify(wireless => wireless.IsDiscoveryAvailableAsync(It.IsAny<CancellationToken>()), Times.Once);
         }
     }
 
@@ -82,7 +80,7 @@ public class WirelessDiscoveryViewModelTests
         {
             var viewModel = CreateViewModel();
             await viewModel.StartAsync();
-            Wireless.Setup(wireless => wireless.DiscoverAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new[] { ConnectService });
+            Wireless.Discovers(ConnectService);
 
             TimerFactory.Timer.RaiseTick();
 

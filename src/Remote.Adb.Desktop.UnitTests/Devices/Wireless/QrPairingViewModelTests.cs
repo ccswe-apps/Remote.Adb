@@ -3,6 +3,7 @@ using Moq;
 using Remote.Adb.Core.Adb.Wireless;
 using Remote.Adb.Desktop.Devices.Wireless;
 using Remote.Adb.Desktop.UnitTests.Fakes;
+using Remote.Adb.Testing;
 
 namespace Remote.Adb.Desktop.UnitTests.Devices.Wireless;
 
@@ -13,26 +14,23 @@ public class QrPairingViewModelTests
     private protected WirelessDiscoveryViewModel Discovery = null!;
     private protected List<WirelessPairResult> Paired = null!;
     private protected FakeTimerFactory TimerFactory = null!;
-    private protected Mock<IWirelessAdbService> Wireless = null!;
+    private protected WirelessMock Wireless = null!;
 
     [SetUp]
     public void SetUp()
     {
         TimerFactory = new FakeTimerFactory();
-        Wireless = new Mock<IWirelessAdbService>();
-        Wireless.Setup(wireless => wireless.IsDiscoveryAvailableAsync(It.IsAny<CancellationToken>())).ReturnsAsync(true);
-        Wireless.Setup(wireless => wireless.DiscoverAsync(It.IsAny<CancellationToken>())).ReturnsAsync(Array.Empty<MdnsService>());
-        Discovery = new WirelessDiscoveryViewModel(Wireless.Object, TimerFactory);
+        Wireless = new WirelessMock();
+        Discovery = new WirelessDiscoveryViewModel(Wireless.Object, TimerFactory, new LoggerFake<WirelessDiscoveryViewModel>());
         CodeForm = new PairingCodeViewModel(Wireless.Object);
         Paired = [];
     }
 
-    // The regenerate timer is the second one created (discovery's poller is the first).
-    private protected FakeDispatcherTimer RegenerateTimer => TimerFactory.Timers[1];
+    private protected FakeDispatcherTimer RegenerateTimer => TimerFactory.WithInterval(QrPairingViewModel.RegenerateInterval);
 
     private protected QrPairingViewModel CreateViewModel()
     {
-        var viewModel = new QrPairingViewModel(Wireless.Object, Discovery, CodeForm, TimerFactory);
+        var viewModel = new QrPairingViewModel(Wireless.Object, Discovery, CodeForm, TimerFactory, new RecordingExceptionReporter());
         viewModel.Paired += Paired.Add;
         return viewModel;
     }
@@ -40,9 +38,7 @@ public class QrPairingViewModelTests
     // The device scanned the code: discovery now reports a pairing service named after it.
     private protected async Task DeviceScansAsync(QrPairingViewModel viewModel)
     {
-        Wireless
-            .Setup(wireless => wireless.DiscoverAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new[] { new MdnsService(viewModel.Payload.ServiceName, MdnsServiceType.Pairing, "192.168.1.20", 37123) });
+        Wireless.Discovers(new MdnsService(viewModel.Payload.ServiceName, MdnsServiceType.Pairing, "192.168.1.20", 37123));
         await Discovery.StartAsync();
     }
 
@@ -51,16 +47,14 @@ public class QrPairingViewModelTests
         [Test]
         public async Task It_pairs_with_the_scanned_password()
         {
-            Wireless
-                .Setup(wireless => wireless.PairAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new WirelessPairResult(true, true, "Paired and connected.", "adb-x"));
+            Wireless.PairReturns(new WirelessPairResult(true, true, "Paired and connected.", "adb-x"));
             var viewModel = CreateViewModel();
             viewModel.Start();
             var password = viewModel.Payload.Password;
 
             await DeviceScansAsync(viewModel);
 
-            Wireless.Verify(wireless => wireless.PairAsync("192.168.1.20:37123", password, It.IsAny<CancellationToken>()), Times.Once);
+            Wireless.Inner.Verify(wireless => wireless.PairAsync("192.168.1.20:37123", password, It.IsAny<CancellationToken>()), Times.Once);
             Assert.Multiple(() =>
             {
                 Assert.That(Paired, Has.Count.EqualTo(1));
@@ -71,15 +65,13 @@ public class QrPairingViewModelTests
         [Test]
         public async Task It_ignores_other_devices_waiting_to_pair()
         {
-            Wireless
-                .Setup(wireless => wireless.DiscoverAsync(It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new[] { new MdnsService("someone-else", MdnsServiceType.Pairing, "192.168.1.30", 37000) });
+            Wireless.Discovers(new MdnsService("someone-else", MdnsServiceType.Pairing, "192.168.1.30", 37000));
             var viewModel = CreateViewModel();
             viewModel.Start();
 
             await Discovery.StartAsync();
 
-            Wireless.Verify(wireless => wireless.PairAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+            Wireless.Inner.Verify(wireless => wireless.PairAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         }
 
         [Test]
@@ -91,15 +83,13 @@ public class QrPairingViewModelTests
 
             await DeviceScansAsync(viewModel);
 
-            Wireless.Verify(wireless => wireless.PairAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+            Wireless.Inner.Verify(wireless => wireless.PairAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         }
 
         [Test]
         public async Task It_shows_the_error_and_a_new_code_when_pairing_fails()
         {
-            Wireless
-                .Setup(wireless => wireless.PairAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new WirelessPairResult(false, false, "error: protocol fault"));
+            Wireless.PairReturns(new WirelessPairResult(false, false, "error: protocol fault"));
             var viewModel = CreateViewModel();
             viewModel.Start();
             var original = viewModel.Payload;
@@ -110,7 +100,7 @@ public class QrPairingViewModelTests
             {
                 Assert.That(viewModel.ErrorMessage, Does.StartWith("error: protocol fault"));
                 Assert.That(viewModel.Payload, Is.Not.EqualTo(original));
-                Assert.That(viewModel.IsPairing, Is.False);
+                Assert.That(viewModel.IsBusy, Is.False);
                 Assert.That(Paired, Is.Empty);
             });
         }
@@ -124,7 +114,7 @@ public class QrPairingViewModelTests
 
             await DeviceScansAsync(viewModel);
 
-            Wireless.Verify(wireless => wireless.PairAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+            Wireless.Inner.Verify(wireless => wireless.PairAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         }
     }
 

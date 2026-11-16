@@ -21,30 +21,7 @@ public static class ObservableCollectionMergeExtensions
         Action<TRow, TItem> updateRow,
         Func<TRow, string> sortKey)
     {
-        foreach (var item in items)
-        {
-            var key = itemKey(item);
-            var existing = rows.FirstOrDefault(row => rowKey(row) == key);
-
-            if (existing is null)
-            {
-                rows.Add(createRow(item));
-            }
-            else
-            {
-                updateRow(existing, item);
-            }
-        }
-
-        for (var i = rows.Count - 1; i >= 0; i--)
-        {
-            var key = rowKey(rows[i]);
-            if (items.All(item => itemKey(item) != key))
-            {
-                rows.RemoveAt(i);
-            }
-        }
-
+        rows.MergeByKind(items, itemKey, rowKey, _ => true, createRow, updateRow);
         rows.SortBy(sortKey);
     }
 

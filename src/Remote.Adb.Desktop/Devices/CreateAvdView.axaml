@@ -97,18 +97,18 @@
                         <TabItem Header="Device">
                             <ScrollViewer>
                                 <StackPanel Spacing="16" Margin="16,16,16,8">
-                                    <StackPanel Spacing="4">
-                                        <TextBlock Classes="LabelLarge" Text="Name"/>
+                                    <StackPanel Classes="Field">
+                                        <TextBlock Classes="FieldLabel" Text="Name"/>
                                         <TextBox Text="{Binding Name}" PlaceholderText="My_Avd"/>
                                     </StackPanel>
 
-                                    <StackPanel Spacing="4">
-                                        <TextBlock Classes="LabelLarge" Text="Display name (optional)"/>
+                                    <StackPanel Classes="Field">
+                                        <TextBlock Classes="FieldLabel" Text="Display name (optional)"/>
                                         <TextBox Text="{Binding DisplayName}"/>
                                     </StackPanel>
 
                                     <StackPanel Spacing="8">
-                                        <TextBlock Classes="LabelLarge" Text="Select system image"/>
+                                        <TextBlock Classes="FieldLabel" Text="System image"/>
                                         <Grid ColumnDefinitions="*,*">
                                             <ComboBox Grid.Column="0" HorizontalAlignment="Stretch" Margin="0,0,4,0"
                                                       ItemsSource="{Binding ApiFilters}" SelectedItem="{Binding SelectedApiFilter}"/>
@@ -151,8 +151,8 @@
                                             </ItemsPanelTemplate>
                                         </ItemsControl.ItemsPanel>
                                         <ItemsControl.ItemTemplate>
-                                            <DataTemplate DataType="common:DetailGroup">
-                                                <common:PropertyGroupView/>
+                                            <DataTemplate DataType="emu:DetailGroup">
+                                                <emu:PropertyGroupView/>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
@@ -231,10 +231,7 @@
             <Border Grid.Row="1" BorderBrush="{DynamicResource OutlineVariant}" BorderThickness="0,1,0,0"
                     Padding="16,12">
                 <Grid ColumnDefinitions="*,Auto">
-                    <TextBlock Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap"
-                               Classes="BodySmall" Foreground="{DynamicResource Error}"
-                               IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                               Text="{Binding StatusMessage}"/>
+                    <TextBlock Grid.Column="0" VerticalAlignment="Center" Classes="ErrorText" Text="{Binding StatusMessage}"/>
 
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                         <Button Content="Cancel" Command="{Binding CancelCommand}"/>

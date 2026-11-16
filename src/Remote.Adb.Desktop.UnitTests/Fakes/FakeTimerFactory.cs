@@ -13,8 +13,11 @@ public sealed class FakeTimerFactory : ITimerFactory
 
     public IDispatcherTimer Create(TimeSpan interval)
     {
-        var timer = new FakeDispatcherTimer();
+        var timer = new FakeDispatcherTimer(interval);
         Timers.Add(timer);
         return timer;
     }
+
+    /// <summary>The single timer created with <paramref name="interval"/> — independent of creation order.</summary>
+    public FakeDispatcherTimer WithInterval(TimeSpan interval) => Timers.Single(timer => timer.Interval == interval);
 }

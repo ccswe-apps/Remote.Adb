@@ -8,20 +8,19 @@
         <TextBlock Classes="BodyMedium" Foreground="{DynamicResource OnSurfaceVariant}" TextWrapping="Wrap"
                    Text="On the device, open Developer options › Wireless debugging › Pair device with pairing code, then enter what it shows."/>
 
-        <StackPanel Spacing="4">
-            <TextBlock Text="IP address &amp; port" Classes="BodySmall" Foreground="{DynamicResource OnSurfaceVariant}"/>
+        <StackPanel Classes="Field">
+            <TextBlock Classes="FieldLabel" Text="IP address &amp; port"/>
             <TextBox Text="{Binding PairingAddress}" PlaceholderText="192.168.1.20:37123"
                      FontFamily="{DynamicResource CodeFontFamily}" AutomationProperties.Name="Pairing address"/>
         </StackPanel>
 
-        <StackPanel Spacing="4">
-            <TextBlock Text="Wi-Fi pairing code" Classes="BodySmall" Foreground="{DynamicResource OnSurfaceVariant}"/>
+        <StackPanel Classes="Field">
+            <TextBlock Classes="FieldLabel" Text="Wi-Fi pairing code"/>
             <TextBox Text="{Binding Code}" PlaceholderText="123456" MaxLength="10"
                      FontFamily="{DynamicResource CodeFontFamily}" AutomationProperties.Name="Pairing code"/>
         </StackPanel>
 
-        <TextBlock Text="{Binding ErrorMessage}" Classes="BodySmall" Foreground="{DynamicResource Error}" TextWrapping="Wrap"
-                   IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+        <TextBlock Classes="ErrorText" Text="{Binding ErrorMessage}"/>
 
         <StackPanel Orientation="Horizontal" Spacing="12">
             <Button Classes="Filled" Content="Pair" Command="{Binding PairCommand}" IsDefault="True"/>

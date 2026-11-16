@@ -1,6 +1,5 @@
 using Remote.Adb.Core.Common;
 using Remote.Adb.Core.Emulators;
-using Remote.Adb.Desktop.Common;
 
 namespace Remote.Adb.Desktop.Devices;
 
