@@ -11,6 +11,8 @@ internal sealed class TunnelService : ITunnelService, IAsyncDisposable
     // IntelliJ's Android plugin respawns adb on Gradle sync and can win the bind race, so retry a few times.
     private const int MaxRetries = 3;
 
+    private const string Ssh = "ssh";
+
     // A GUI process has no terminal, so any password/passphrase/host-key prompt would hang ssh forever (and a
     // hung ssh that never exits looks "connected" once the settle window elapses). BatchMode fails fast instead;
     // ConnectTimeout bounds an unreachable host; accept-new trusts a new host key the way answering the
@@ -25,23 +27,36 @@ internal sealed class TunnelService : ITunnelService, IAsyncDisposable
     ];
 
     private readonly IAdbServerService _adbServer;
-    private readonly object _connectLock = new();
+    private CancellationTokenSource? _connectCts;
+    private TunnelConnection? _connection;
     private readonly IExecutableFinder _executableFinder;
+
+    // Serializes the owning operations (connect, disconnect, dispose, a monitor retiring its connection, each
+    // reconnect attempt) — held across awaits, so a semaphore rather than a lock.
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly ILogger<TunnelService> _logger;
     private readonly IProcessRunner _processRunner;
-    private readonly ISettingsService _settings;
-    private TunnelConnection? _connection;
-    private CancellationTokenSource? _connectCts;
     private CancellationTokenSource? _reconnectCts;
+    private readonly ISettingsService _settings;
     private TunnelStatus _status = new(TunnelState.Disconnected, null);
+    private readonly TimeProvider _timeProvider;
 
-    public TunnelService(IProcessRunner processRunner, IAdbServerService adbServer, ISettingsService settings, IExecutableFinder executableFinder, ILogger<TunnelService> logger)
+    // Guards _connectCts/_reconnectCts so cancelling one and disposing it are mutually exclusive.
+    private readonly Lock _tokenLock = new();
+
+    public TunnelService(
+        IProcessRunner processRunner,
+        IAdbServerService adbServer,
+        ISettingsService settings,
+        IExecutableFinder executableFinder,
+        TimeProvider timeProvider,
+        ILogger<TunnelService> logger)
     {
         _processRunner = processRunner;
         _adbServer = adbServer;
         _settings = settings;
         _executableFinder = executableFinder;
+        _timeProvider = timeProvider;
         _logger = logger;
     }
 
@@ -72,21 +87,40 @@ internal sealed class TunnelService : ITunnelService, IAsyncDisposable
     /// <inheritdoc />
     public TunnelStatus Status => _status;
 
+    // Cancels an in-flight connect (if any). The lock pairs with ConnectAsync's finally so cancelling and retiring
+    // the same linked CTS are mutually exclusive — no Cancel()-on-disposed-CTS race.
+    private void CancelConnectInFlight()
+    {
+        lock (_tokenLock)
+        {
+            _connectCts?.Cancel();
+        }
+    }
+
+    // Cancels an in-flight reconnect supervisor (if any), so a user Connect/Disconnect supersedes it.
+    private void CancelReconnect()
+    {
+        lock (_tokenLock)
+        {
+            _reconnectCts?.Cancel();
+        }
+    }
+
     /// <inheritdoc />
     public async Task ConnectAsync(string? host = null, CancellationToken cancellationToken = default)
     {
         CancelReconnect();
 
-        var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        using var lease = await _gate.LockAsync(cancellationToken);
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-        await _gate.WaitAsync(cancellationToken);
+        lock (_tokenLock)
+        {
+            _connectCts = cts;
+        }
+
         try
         {
-            lock (_connectLock)
-            {
-                _connectCts = cts;
-            }
-
             SetStatus(TunnelState.Connecting, null);
             var error = await TryConnectAsync(host, cts.Token);
             if (error is not null)
@@ -101,15 +135,17 @@ internal sealed class TunnelService : ITunnelService, IAsyncDisposable
         }
         finally
         {
-            lock (_connectLock)
+            // Retired under the lock, so no concurrent CancelConnectInFlight can reach it once it's disposed.
+            lock (_tokenLock)
             {
                 _connectCts = null;
-                cts.Dispose();
             }
-
-            _gate.Release();
         }
     }
+
+    // The user-facing reason an ssh session exited, from what it printed (or its exit code when it printed nothing).
+    private static string DescribeExit(IProcessSession session, int exitCode) =>
+        new ProcessResult(exitCode, string.Empty, session.StandardError).Describe(Ssh);
 
     /// <inheritdoc />
     public async Task DisconnectAsync(CancellationToken cancellationToken = default)
@@ -117,16 +153,9 @@ internal sealed class TunnelService : ITunnelService, IAsyncDisposable
         CancelReconnect();
         CancelConnectInFlight();
 
-        await _gate.WaitAsync(cancellationToken);
-        try
-        {
-            await TearDownConnectionAsync();
-            SetStatus(TunnelState.Disconnected, null);
-        }
-        finally
-        {
-            _gate.Release();
-        }
+        using var lease = await _gate.LockAsync(cancellationToken);
+        await TearDownConnectionAsync();
+        SetStatus(TunnelState.Disconnected, null);
     }
 
     /// <inheritdoc />
@@ -135,40 +164,8 @@ internal sealed class TunnelService : ITunnelService, IAsyncDisposable
         CancelReconnect();
         CancelConnectInFlight();
 
-        await _gate.WaitAsync();
-        try
-        {
-            await TearDownConnectionAsync();
-        }
-        finally
-        {
-            _gate.Release();
-        }
-    }
-
-    // Cancels an in-flight connect (if any). The lock pairs with ConnectAsync's finally so cancel and the
-    // disposal of the same linked CTS are mutually exclusive — no Cancel()-on-disposed-CTS race.
-    private void CancelConnectInFlight()
-    {
-        lock (_connectLock)
-        {
-            _connectCts?.Cancel();
-        }
-    }
-
-    // Cancels an in-flight reconnect supervisor (if any), so a user Connect/Disconnect supersedes it.
-    private void CancelReconnect()
-    {
-        lock (_connectLock)
-        {
-            _reconnectCts?.Cancel();
-        }
-    }
-
-    private static string Detail(string standardError, int? exitCode)
-    {
-        var trimmed = standardError.Trim();
-        return trimmed.Length > 0 ? trimmed : $"ssh exited with code {exitCode}.";
+        using var lease = await _gate.LockAsync();
+        await TearDownConnectionAsync();
     }
 
     private async Task MonitorServerHealthAsync(TunnelConnection connection, int port)
@@ -181,7 +178,7 @@ internal sealed class TunnelService : ITunnelService, IAsyncDisposable
         {
             while (!token.IsCancellationRequested)
             {
-                await Task.Delay(HealthCheckInterval, token);
+                await Task.Delay(HealthCheckInterval, _timeProvider, token);
 
                 if (await _adbServer.IsRunningAsync(port, token))
                 {
@@ -222,7 +219,7 @@ internal sealed class TunnelService : ITunnelService, IAsyncDisposable
 
         await OnConnectionLostAsync(
             connection,
-            $"The tunnel dropped ({Detail(connection.Session.StandardError, exitCode)})",
+            $"The tunnel dropped ({DescribeExit(connection.Session, exitCode)}).",
             () => _logger.LogWarning("Tunnel dropped (exit {ExitCode}): {Error}", exitCode, connection.Session.StandardError));
     }
 
@@ -231,42 +228,35 @@ internal sealed class TunnelService : ITunnelService, IAsyncDisposable
     // user Disconnect, which nulls _connection first under the gate) finds it isn't current and does nothing.
     private async Task OnConnectionLostAsync(TunnelConnection connection, string reason, Action log)
     {
-        var lost = false;
-        CancellationTokenSource? reconnectCts = null;
+        CancellationTokenSource reconnectCts;
 
-        await _gate.WaitAsync();
-        try
+        using (await _gate.LockAsync())
         {
-            if (ReferenceEquals(_connection, connection))
+            if (!ReferenceEquals(_connection, connection))
             {
-                lost = true;
-                _connection = null;
-                log();
-
-                reconnectCts = new CancellationTokenSource();
-                lock (_connectLock)
-                {
-                    _reconnectCts = reconnectCts;
-                }
-
-                SetStatus(TunnelState.Reconnecting, $"{reason} Reconnecting…");
+                return;
             }
-        }
-        finally
-        {
-            _gate.Release();
+
+            _connection = null;
+            log();
+
+            reconnectCts = new CancellationTokenSource();
+            lock (_tokenLock)
+            {
+                _reconnectCts = reconnectCts;
+            }
+
+            SetStatus(TunnelState.Reconnecting, $"{reason} Reconnecting…");
         }
 
-        if (lost)
-        {
-            await connection.DisposeAsync();
-            _ = ReconnectAsync(reconnectCts!);
-        }
+        await connection.DisposeAsync();
+        _ = ReconnectAsync(reconnectCts, connection.Host);
     }
 
-    // Re-establishes a dropped tunnel with a growing backoff, up to MaxReconnectAttempts, before faulting. Runs
-    // fire-and-forget; cancelled (and superseded) by a user Connect/Disconnect/Dispose via CancelReconnect.
-    private async Task ReconnectAsync(CancellationTokenSource cts)
+    // Re-establishes a dropped tunnel to the same host it was connected to (so a one-off host override survives a
+    // drop) with a growing backoff, up to MaxReconnectAttempts, before faulting. Runs fire-and-forget; cancelled
+    // (and superseded) by a user Connect/Disconnect/Dispose via CancelReconnect.
+    private async Task ReconnectAsync(CancellationTokenSource cts, string host)
     {
         var token = cts.Token;
         string? error = null;
@@ -275,17 +265,12 @@ internal sealed class TunnelService : ITunnelService, IAsyncDisposable
         {
             for (var attempt = 1; attempt <= MaxReconnectAttempts; attempt++)
             {
-                await Task.Delay(ReconnectBackoff * attempt, token);
+                await Task.Delay(ReconnectBackoff * attempt, _timeProvider, token);
 
-                await _gate.WaitAsync(token);
-                try
+                using (await _gate.LockAsync(token))
                 {
                     SetStatus(TunnelState.Reconnecting, $"Reconnecting… (attempt {attempt}/{MaxReconnectAttempts})");
-                    error = await TryConnectAsync(null, token);
-                }
-                finally
-                {
-                    _gate.Release();
+                    error = await TryConnectAsync(host, token);
                 }
 
                 if (error is null)
@@ -296,14 +281,9 @@ internal sealed class TunnelService : ITunnelService, IAsyncDisposable
                 _logger.LogWarning("Tunnel reconnect attempt {Attempt}/{Max} failed: {Error}", attempt, MaxReconnectAttempts, error);
             }
 
-            await _gate.WaitAsync(token);
-            try
+            using (await _gate.LockAsync(token))
             {
                 SetStatus(TunnelState.Faulted, $"Lost the tunnel and couldn't reconnect after {MaxReconnectAttempts} attempts. {error}");
-            }
-            finally
-            {
-                _gate.Release();
             }
         }
         catch (OperationCanceledException)
@@ -311,7 +291,7 @@ internal sealed class TunnelService : ITunnelService, IAsyncDisposable
         }
         finally
         {
-            lock (_connectLock)
+            lock (_tokenLock)
             {
                 if (ReferenceEquals(_reconnectCts, cts))
                 {
@@ -367,7 +347,7 @@ internal sealed class TunnelService : ITunnelService, IAsyncDisposable
             return "No remote host configured.";
         }
 
-        var ssh = _executableFinder.FindOnPath("ssh");
+        var ssh = _executableFinder.FindOnPath(Ssh);
         if (ssh is null)
         {
             return "OpenSSH 'ssh' was not found on PATH.";
@@ -401,15 +381,13 @@ internal sealed class TunnelService : ITunnelService, IAsyncDisposable
                 // Kill any adb the remote IntelliJ respawned, which would already hold the reverse-forward port.
                 // pkill -x (exact name) is signal-only — never `adb kill-server`, which can hang on the forward.
                 // Bound it: a stalled ssh (slow auth) would otherwise hang this attempt forever — kill it and retry.
-                using var attemptCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                attemptCts.CancelAfter(AttemptTimeout);
+                var (completed, kill) = await Timeouts.TryWithTimeoutAsync(
+                    token => _processRunner.RunAsync(ssh, [.. SshConnectOptions, resolvedHost, "pkill -x adb >/dev/null 2>&1; true"], cancellationToken: token),
+                    AttemptTimeout,
+                    cancellationToken,
+                    _timeProvider);
 
-                ProcessResult kill;
-                try
-                {
-                    kill = await _processRunner.RunAsync(ssh, [.. SshConnectOptions, resolvedHost, "pkill -x adb >/dev/null 2>&1; true"], cancellationToken: attemptCts.Token);
-                }
-                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                if (!completed)
                 {
                     _logger.LogWarning("Tunnel attempt {Attempt}/{Max}: ssh to {Host} did not respond within {Timeout:N0}s.", attempt, MaxRetries, resolvedHost, AttemptTimeout.TotalSeconds);
 
@@ -421,25 +399,25 @@ internal sealed class TunnelService : ITunnelService, IAsyncDisposable
                     continue;
                 }
 
-                if (!kill.Success)
+                if (!kill!.Success)
                 {
-                    return $"Could not reach {resolvedHost} over SSH: {Detail(kill.StandardError, kill.ExitCode)}";
+                    return $"Could not reach {resolvedHost} over SSH: {kill.Describe(Ssh)}";
                 }
 
                 var session = _processRunner.StartSession(ssh, [.. SshConnectOptions, "-o", "ExitOnForwardFailure=yes", "-N", "-R", forwardSpec, resolvedHost]);
                 var exitTask = session.WaitForExitAsync();
 
-                var settled = await Task.WhenAny(exitTask, Task.Delay(SettleWindow, cancellationToken));
+                var settled = await Task.WhenAny(exitTask, Task.Delay(SettleWindow, _timeProvider, cancellationToken));
                 if (settled == exitTask)
                 {
-                    await exitTask;
-                    var error = session.StandardError;
+                    // Read the outcome from the awaited exit, before disposal releases the process.
+                    var detail = DescribeExit(session, await exitTask);
                     await session.DisposeAsync();
-                    _logger.LogWarning("Tunnel bind attempt {Attempt}/{Max} exited early: {Error}", attempt, MaxRetries, error);
+                    _logger.LogWarning("Tunnel bind attempt {Attempt}/{Max} exited early: {Error}", attempt, MaxRetries, detail);
 
                     if (attempt == MaxRetries)
                     {
-                        return $"The reverse forward could not bind after {MaxRetries} attempts. {Detail(error, session.ExitCode)}";
+                        return $"The reverse forward could not bind after {MaxRetries} attempts. {detail}";
                     }
 
                     continue;
@@ -447,12 +425,11 @@ internal sealed class TunnelService : ITunnelService, IAsyncDisposable
 
                 if (cancellationToken.IsCancellationRequested)
                 {
-                    session.Kill();
                     await session.DisposeAsync();
                     cancellationToken.ThrowIfCancellationRequested();
                 }
 
-                var connection = new TunnelConnection(session, exitTask);
+                var connection = new TunnelConnection(session, exitTask, resolvedHost);
                 _connection = connection;
                 SetStatus(TunnelState.Connected, $"Forwarding {resolvedHost}:{remotePort} → 127.0.0.1:{localPort}");
                 _ = MonitorSshExitAsync(connection);
@@ -468,22 +445,26 @@ internal sealed class TunnelService : ITunnelService, IAsyncDisposable
         }
     }
 
-    // One live tunnel: the ssh session, the task that completes when it exits, and a CTS bounding the connected
-    // phase (cancelled on teardown to stop the health monitor). Disposing kills the session; idempotent because
-    // both the owning teardown and a faulting monitor can reach it, though the coordination ensures only one does.
+    // One live tunnel: the ssh session, the task that completes when it exits, the host it reaches (reused by an
+    // auto-reconnect), and a CTS bounding the connected phase (cancelled on teardown to stop the health monitor).
+    // Disposing kills the session; idempotent because both the owning teardown and a faulting monitor can reach
+    // it, though the coordination ensures only one does.
     private sealed class TunnelConnection
     {
         private bool _disposed;
 
-        public TunnelConnection(IProcessSession session, Task<int> exitTask)
+        public TunnelConnection(IProcessSession session, Task<int> exitTask, string host)
         {
             Session = session;
             ExitTask = exitTask;
+            Host = host;
         }
 
         public CancellationTokenSource Cts { get; } = new();
 
         public Task<int> ExitTask { get; }
+
+        public string Host { get; }
 
         public IProcessSession Session { get; }
 
@@ -497,7 +478,6 @@ internal sealed class TunnelService : ITunnelService, IAsyncDisposable
             _disposed = true;
             Cts.Cancel();
             Cts.Dispose();
-            Session.Kill();
             await Session.DisposeAsync();
         }
     }
