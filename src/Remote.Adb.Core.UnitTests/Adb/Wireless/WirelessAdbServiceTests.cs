@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Microsoft.Extensions.Time.Testing;
 using Moq;
 using Remote.Adb.Core.Adb.Wireless;
 using Remote.Adb.Core.Common;
@@ -12,9 +13,32 @@ public class WirelessAdbServiceTests
 {
     private protected const string Guid = "adb-R58M123ABC-AbCdEf";
 
+    private protected static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(1);
+
     private protected AdbRunnerMock Adb = null!;
     private protected List<string> Saved = null!;
     private protected Mock<ISettingsService> Settings = null!;
+    private protected FakeTimeProvider Time = null!;
+
+    private protected WirelessAdbService CreateService() =>
+        new(Adb.Object, Settings.Object, Time, new LoggerFake<WirelessAdbService>())
+        {
+            ConnectTimeout = TimeSpan.FromSeconds(15),
+            EnableConnectTimeout = TimeSpan.FromSeconds(10),
+            PairConnectTimeout = TimeSpan.FromSeconds(10),
+            PairTimeout = TimeSpan.FromSeconds(30),
+            PollInterval = PollInterval,
+        };
+
+    // Makes adb commands starting with `command` block until their token is cancelled.
+    private protected void Hangs(string command) =>
+        Adb.Inner
+            .Setup(runner => runner.RunAsync(It.Is<IReadOnlyList<string>>(args => args[0] == command), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Returns<IReadOnlyList<string>, string?, CancellationToken>(async (_, _, token) =>
+            {
+                await Task.Delay(Timeout.Infinite, token);
+                return new ProcessResult(0, string.Empty, string.Empty);
+            });
 
     [SetUp]
     public void SetUp()
@@ -25,42 +49,11 @@ public class WirelessAdbServiceTests
         Settings.SetupGet(settings => settings.WirelessAddresses).Returns(() => Saved);
         Settings.SetupSet(settings => settings.WirelessAddresses = It.IsAny<IReadOnlyList<string>>())
             .Callback<IReadOnlyList<string>>(value => Saved = [.. value]);
+        Time = new FakeTimeProvider();
     }
-
-    private protected WirelessAdbService CreateService() =>
-        new(Adb.Object, Settings.Object, new LoggerFake<WirelessAdbService>())
-        {
-            EnableConnectTimeout = TimeSpan.FromMilliseconds(100),
-            PairConnectTimeout = TimeSpan.FromMilliseconds(50),
-            PairTimeout = TimeSpan.FromMilliseconds(100),
-            PollInterval = TimeSpan.FromMilliseconds(10),
-        };
 
     public class When_ConnectAsync_Is_Called : WirelessAdbServiceTests
     {
-        [Test]
-        public async Task It_passes_the_address_through_unchanged()
-        {
-            Adb.Returns(["connect", "192.168.1.20"], "connected to 192.168.1.20:5555\n");
-
-            var result = await CreateService().ConnectAsync("  192.168.1.20 ");
-
-            Assert.That(result.Outcome, Is.EqualTo(WirelessConnectOutcome.Connected));
-            Adb.Verify(["connect", "192.168.1.20"], Times.Once());
-        }
-
-        [Test]
-        public async Task It_remembers_a_successful_connection_once()
-        {
-            Adb.Returns(["connect", "192.168.1.20:5555"], "connected to 192.168.1.20:5555\n");
-            var service = CreateService();
-
-            await service.ConnectAsync("192.168.1.20:5555");
-            await service.ConnectAsync("192.168.1.20:5555");
-
-            Assert.That(Saved, Is.EqualTo(new[] { "192.168.1.20:5555" }));
-        }
-
         [Test]
         public async Task It_does_not_remember_a_failure()
         {
@@ -82,12 +75,63 @@ public class WirelessAdbServiceTests
         }
 
         [Test]
+        public async Task It_passes_the_address_through_unchanged()
+        {
+            Adb.Returns(["connect", "192.168.1.20"], "connected to 192.168.1.20:5555\n");
+
+            var result = await CreateService().ConnectAsync("  192.168.1.20 ");
+
+            Assert.That(result.Outcome, Is.EqualTo(WirelessConnectOutcome.Connected));
+            Adb.Verify(["connect", "192.168.1.20"], Times.Once());
+        }
+
+        [Test]
         public async Task It_rejects_a_blank_address_without_running_adb()
         {
             var result = await CreateService().ConnectAsync("   ");
 
             Assert.That(result.Outcome, Is.EqualTo(WirelessConnectOutcome.InvalidAddress));
             Adb.VerifyNoOtherCalls();
+        }
+
+        [Test]
+        public async Task It_remembers_a_successful_connection_once()
+        {
+            Adb.Returns(["connect", "192.168.1.20:5555"], "connected to 192.168.1.20:5555\n");
+            var service = CreateService();
+
+            await service.ConnectAsync("192.168.1.20:5555");
+            await service.ConnectAsync("192.168.1.20:5555");
+
+            Assert.That(Saved, Is.EqualTo(new[] { "192.168.1.20:5555" }));
+        }
+
+        [Test]
+        public async Task It_reports_the_server_unavailable_when_adb_cannot_be_launched()
+        {
+            Adb.ThrowsForAny(new ProcessLaunchException("adb", new InvalidOperationException()));
+
+            var result = await CreateService().ConnectAsync("192.168.1.20:5555");
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Outcome, Is.EqualTo(WirelessConnectOutcome.ServerUnavailable));
+                Assert.That(result.Message, Does.Contain("Could not start 'adb'"));
+            });
+        }
+
+        [Test]
+        public async Task It_times_out_a_connect_that_hangs()
+        {
+            Hangs("connect");
+
+            var result = await Time.AdvanceUntilCompleteAsync(CreateService().ConnectAsync("192.168.1.20:5555"), PollInterval);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Outcome, Is.EqualTo(WirelessConnectOutcome.ConnectionFailed));
+                Assert.That(result.Message, Does.Contain("Timed out"));
+            });
         }
     }
 
@@ -109,16 +153,75 @@ public class WirelessAdbServiceTests
         }
     }
 
+    public class When_DiscoverAsync_Is_Called : WirelessAdbServiceTests
+    {
+        [Test]
+        public async Task It_lists_the_discovered_services()
+        {
+            Adb.Returns(["mdns", "services"], $"List of discovered mdns services\n{Guid}\t_adb-tls-connect._tcp.\t192.168.1.20:41235\n");
+
+            var services = await CreateService().DiscoverAsync();
+
+            Assert.That(services, Is.EqualTo(new[] { new MdnsService(Guid, MdnsServiceType.Connect, "192.168.1.20", 41235) }));
+        }
+
+        [Test]
+        public async Task It_returns_nothing_when_adb_cannot_be_launched()
+        {
+            Adb.ThrowsForAny(new ProcessLaunchException("adb", new InvalidOperationException()));
+
+            var services = await CreateService().DiscoverAsync();
+
+            Assert.That(services, Is.Empty);
+        }
+
+        [Test]
+        public async Task It_returns_nothing_when_mdns_services_fails()
+        {
+            Adb.Returns(["mdns", "services"], string.Empty, exitCode: 1, stderr: "error: unknown command\n");
+
+            var services = await CreateService().DiscoverAsync();
+
+            Assert.That(services, Is.Empty);
+        }
+    }
+
     public class When_EnableWirelessAsync_Is_Called : WirelessAdbServiceTests
     {
-        protected static readonly string[] Connect = ["connect", "192.168.1.20:5555"];
-        protected static readonly string[] IpAddr = ["-s", Serial, "shell", "ip", "-4", "addr", "show", "wlan0"];
-        protected static readonly string[] IpRoute = ["-s", Serial, "shell", "ip", "route"];
-        protected const string Serial = "R58M123ABC";
-        protected static readonly string[] Tcpip = ["-s", Serial, "tcpip", "5555"];
+        private const string Serial = "R58M123ABC";
 
-        protected IReadOnlyList<string> CommandsRun() =>
+        private static readonly string[] Connect = ["connect", "192.168.1.20:5555"];
+        private static readonly string[] IpAddr = ["-s", Serial, "shell", "ip", "-4", "addr", "show", "wlan0"];
+        private static readonly string[] IpRoute = ["-s", Serial, "shell", "ip", "route"];
+        private static readonly string[] Tcpip = ["-s", Serial, "tcpip", "5555"];
+
+        private IReadOnlyList<string> CommandsRun() =>
             Adb.Inner.Invocations.Select(invocation => string.Join(' ', (IReadOnlyList<string>)invocation.Arguments[0]!)).ToList();
+
+        [Test]
+        public async Task It_changes_nothing_when_the_device_is_not_on_wifi()
+        {
+            Adb.Returns(IpRoute, "10.20.0.0/16 dev rmnet_data0 src 10.20.30.40\n");
+            Adb.Returns(IpAddr, "30: wlan0: <NO-CARRIER> state DOWN\n");
+
+            var result = await CreateService().EnableWirelessAsync(Serial);
+
+            Assert.That(result.Outcome, Is.EqualTo(WirelessEnableOutcome.NoWifiAddress));
+            Adb.Verify(Tcpip, Times.Never());
+        }
+
+        [Test]
+        public async Task It_falls_back_to_the_wlan0_address()
+        {
+            Adb.Returns(IpRoute, "10.20.0.0/16 dev rmnet_data0 src 10.20.30.40\n");
+            Adb.Returns(IpAddr, "    inet 192.168.1.20/24 brd 192.168.1.255 scope global wlan0\n");
+            Adb.Returns(Tcpip, "restarting in TCP mode port: 5555\n");
+            Adb.Returns(Connect, "connected to 192.168.1.20:5555\n");
+
+            var result = await CreateService().EnableWirelessAsync(Serial);
+
+            Assert.That(result.Address, Is.EqualTo("192.168.1.20:5555"));
+        }
 
         [Test]
         public async Task It_reads_the_wifi_address_before_switching_to_tcp_and_remembers_the_connection()
@@ -139,28 +242,21 @@ public class WirelessAdbServiceTests
         }
 
         [Test]
-        public async Task It_falls_back_to_the_wlan0_address()
+        public async Task It_reports_a_partial_success_when_the_device_never_answers()
         {
-            Adb.Returns(IpRoute, "10.20.0.0/16 dev rmnet_data0 src 10.20.30.40\n");
-            Adb.Returns(IpAddr, "    inet 192.168.1.20/24 brd 192.168.1.255 scope global wlan0\n");
+            Adb.Returns(IpRoute, "192.168.1.0/24 dev wlan0 src 192.168.1.20\n");
             Adb.Returns(Tcpip, "restarting in TCP mode port: 5555\n");
-            Adb.Returns(Connect, "connected to 192.168.1.20:5555\n");
+            Adb.Returns(Connect, "failed to connect to '192.168.1.20:5555': Connection timed out\n");
 
-            var result = await CreateService().EnableWirelessAsync(Serial);
+            var result = await Time.AdvanceUntilCompleteAsync(CreateService().EnableWirelessAsync(Serial), PollInterval);
 
-            Assert.That(result.Address, Is.EqualTo("192.168.1.20:5555"));
-        }
-
-        [Test]
-        public async Task It_changes_nothing_when_the_device_is_not_on_wifi()
-        {
-            Adb.Returns(IpRoute, "10.20.0.0/16 dev rmnet_data0 src 10.20.30.40\n");
-            Adb.Returns(IpAddr, "30: wlan0: <NO-CARRIER> state DOWN\n");
-
-            var result = await CreateService().EnableWirelessAsync(Serial);
-
-            Assert.That(result.Outcome, Is.EqualTo(WirelessEnableOutcome.NoWifiAddress));
-            Adb.Verify(Tcpip, Times.Never());
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Outcome, Is.EqualTo(WirelessEnableOutcome.ConnectFailed));
+                Assert.That(result.Address, Is.EqualTo("192.168.1.20:5555"));
+                Assert.That(result.Message, Does.StartWith("failed to connect"));
+                Assert.That(Saved, Is.Empty);
+            });
         }
 
         [Test]
@@ -180,7 +276,7 @@ public class WirelessAdbServiceTests
         }
 
         [Test]
-        public async Task It_retries_the_connect_while_adbd_restarts()
+        public async Task It_retries_the_connect_every_poll_interval_while_adbd_restarts()
         {
             Adb.Returns(IpRoute, "192.168.1.0/24 dev wlan0 src 192.168.1.20\n");
             Adb.Returns(Tcpip, "restarting in TCP mode port: 5555\n");
@@ -191,30 +287,12 @@ public class WirelessAdbServiceTests
                     ? new ProcessResult(0, "failed to connect to '192.168.1.20:5555': Connection refused\n", string.Empty)
                     : new ProcessResult(0, "connected to 192.168.1.20:5555\n", string.Empty));
 
-            var result = await CreateService().EnableWirelessAsync(Serial);
+            var result = await Time.AdvanceUntilCompleteAsync(CreateService().EnableWirelessAsync(Serial), PollInterval);
 
             Assert.Multiple(() =>
             {
                 Assert.That(result.Outcome, Is.EqualTo(WirelessEnableOutcome.Connected));
                 Assert.That(attempts, Is.EqualTo(3));
-            });
-        }
-
-        [Test]
-        public async Task It_reports_a_partial_success_when_the_device_never_answers()
-        {
-            Adb.Returns(IpRoute, "192.168.1.0/24 dev wlan0 src 192.168.1.20\n");
-            Adb.Returns(Tcpip, "restarting in TCP mode port: 5555\n");
-            Adb.Returns(Connect, "failed to connect to '192.168.1.20:5555': Connection timed out\n");
-
-            var result = await CreateService().EnableWirelessAsync(Serial);
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(result.Outcome, Is.EqualTo(WirelessEnableOutcome.ConnectFailed));
-                Assert.That(result.Address, Is.EqualTo("192.168.1.20:5555"));
-                Assert.That(result.Message, Does.StartWith("failed to connect"));
-                Assert.That(Saved, Is.Empty);
             });
         }
     }
@@ -241,13 +319,60 @@ public class WirelessAdbServiceTests
     public class When_PairAsync_Is_Called : WirelessAdbServiceTests
     {
         [Test]
-        public async Task It_sends_the_code_on_stdin_and_never_as_an_argument()
+        public async Task It_connects_to_the_announced_address_when_adb_did_not()
         {
-            Adb.Returns(["pair", "192.168.1.20:37123"], "Enter pairing code: error\n", exitCode: 1);
+            Adb.Returns(["pair", "192.168.1.20:37123"], $"Successfully paired to 192.168.1.20:37123 [guid={Guid}]\n");
+            Adb.Returns(["devices"], "List of devices attached\n");
+            Adb.Returns(["mdns", "services"], $"List of discovered mdns services\n{Guid}\t_adb-tls-connect._tcp.\t192.168.1.20:41235\n");
+            Adb.Returns(["connect", "192.168.1.20:41235"], "connected to 192.168.1.20:41235\n");
 
-            await CreateService().PairAsync("192.168.1.20:37123", " 123456 ");
+            var result = await CreateService().PairAsync("192.168.1.20:37123", "123456");
 
-            Adb.VerifyStdin(["pair", "192.168.1.20:37123"], "123456\n");
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Connected, Is.True);
+                Assert.That(Saved, Is.Empty, "a TLS connect port changes, so it isn't remembered");
+            });
+        }
+
+        [Test]
+        public async Task It_gives_up_when_adb_pair_hangs()
+        {
+            Hangs("pair");
+
+            var result = await Time.AdvanceUntilCompleteAsync(CreateService().PairAsync("192.168.1.20:37123", "123456"), PollInterval);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Paired, Is.False);
+                Assert.That(result.Message, Does.Contain("Timed out"));
+            });
+        }
+
+        [Test]
+        public async Task It_propagates_a_caller_cancellation_instead_of_reporting_a_timeout()
+        {
+            Hangs("pair");
+            using var cancellation = new CancellationTokenSource();
+            var pairing = CreateService().PairAsync("192.168.1.20:37123", "123456", cancellation.Token);
+
+            await cancellation.CancelAsync();
+
+            await Assert.CatchAsync<OperationCanceledException>(() => pairing);
+        }
+
+        [Test]
+        public async Task It_reports_a_launch_failure_as_not_paired()
+        {
+            Adb.ThrowsForAny(new ProcessLaunchException("adb", new InvalidOperationException()));
+
+            var result = await CreateService().PairAsync("192.168.1.20:37123", "123456");
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Paired, Is.False);
+                Assert.That(result.Message, Does.Contain("Could not start 'adb'"));
+            });
         }
 
         [Test]
@@ -266,56 +391,19 @@ public class WirelessAdbServiceTests
         }
 
         [Test]
-        public async Task It_connects_to_the_announced_address_when_adb_did_not()
-        {
-            Adb.Returns(["pair", "192.168.1.20:37123"], $"Successfully paired to 192.168.1.20:37123 [guid={Guid}]\n");
-            Adb.Returns(["devices"], "List of devices attached\n");
-            Adb.Returns(["mdns", "services"], $"List of discovered mdns services\n{Guid}\t_adb-tls-connect._tcp.\t192.168.1.20:41235\n");
-            Adb.Returns(["connect", "192.168.1.20:41235"], "connected to 192.168.1.20:41235\n");
-
-            var result = await CreateService().PairAsync("192.168.1.20:37123", "123456");
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(result.Connected, Is.True);
-                Assert.That(Saved, Is.Empty, "a TLS connect port changes, so it isn't remembered");
-            });
-        }
-
-        [Test]
         public async Task It_reports_paired_but_not_connected_when_the_device_never_appears()
         {
             Adb.Returns(["pair", "192.168.1.20:37123"], $"Successfully paired to 192.168.1.20:37123 [guid={Guid}]\n");
             Adb.Returns(["devices"], "List of devices attached\n");
             Adb.Returns(["mdns", "services"], "List of discovered mdns services\n");
 
-            var result = await CreateService().PairAsync("192.168.1.20:37123", "123456");
+            var result = await Time.AdvanceUntilCompleteAsync(CreateService().PairAsync("192.168.1.20:37123", "123456"), PollInterval);
 
             Assert.Multiple(() =>
             {
                 Assert.That(result.Paired, Is.True);
                 Assert.That(result.Connected, Is.False);
                 Assert.That(result.Message, Does.Contain("Wireless debugging"));
-            });
-        }
-
-        [Test]
-        public async Task It_gives_up_when_adb_pair_hangs()
-        {
-            Adb.Inner
-                .Setup(runner => runner.RunAsync(It.Is<IReadOnlyList<string>>(args => args[0] == "pair"), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-                .Returns<IReadOnlyList<string>, string?, CancellationToken>(async (_, _, token) =>
-                {
-                    await Task.Delay(Timeout.Infinite, token);
-                    return new ProcessResult(0, string.Empty, string.Empty);
-                });
-
-            var result = await CreateService().PairAsync("192.168.1.20:37123", "123456");
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(result.Paired, Is.False);
-                Assert.That(result.Message, Does.Contain("Timed out"));
             });
         }
 
@@ -328,6 +416,16 @@ public class WirelessAdbServiceTests
 
             Assert.That(result.Paired, Is.False);
             Adb.Verify(["devices"], Times.Never());
+        }
+
+        [Test]
+        public async Task It_sends_the_code_on_stdin_and_never_as_an_argument()
+        {
+            Adb.Returns(["pair", "192.168.1.20:37123"], "Enter pairing code: error\n", exitCode: 1);
+
+            await CreateService().PairAsync("192.168.1.20:37123", " 123456 ");
+
+            Adb.VerifyStdin(["pair", "192.168.1.20:37123"], "123456\n");
         }
     }
 

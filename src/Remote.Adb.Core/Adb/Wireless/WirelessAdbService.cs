@@ -8,17 +8,22 @@ namespace Remote.Adb.Core.Adb.Wireless;
 /// <inheritdoc />
 internal sealed class WirelessAdbService : IWirelessAdbService
 {
-    private const string DefaultPortSuffix = ":5555";
+    private static readonly string DefaultPortSuffix = $":{DefaultWirelessPort}";
+
+    /// <summary>adb's default port for a device in TCP mode — what <c>adb tcpip</c> is given and <c>adb connect</c> assumes.</summary>
+    internal const int DefaultWirelessPort = 5555;
 
     private readonly IAdbRunner _adb;
     private readonly Lock _gate = new();
     private readonly ILogger<WirelessAdbService> _logger;
     private readonly ISettingsService _settings;
+    private readonly TimeProvider _timeProvider;
 
-    public WirelessAdbService(IAdbRunner adb, ISettingsService settings, ILogger<WirelessAdbService> logger)
+    public WirelessAdbService(IAdbRunner adb, ISettingsService settings, TimeProvider timeProvider, ILogger<WirelessAdbService> logger)
     {
         _adb = adb;
         _settings = settings;
+        _timeProvider = timeProvider;
         _logger = logger;
     }
 
@@ -40,8 +45,20 @@ internal sealed class WirelessAdbService : IWirelessAdbService
     /// <summary>How often to check for the device while waiting for it to connect after pairing.</summary>
     internal TimeSpan PollInterval { get; init; } = TimeSpan.FromSeconds(1);
 
-    private Task<ProcessResult> AdbAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken) =>
-        _adb.RunAsync(arguments, cancellationToken: cancellationToken);
+    // Every adb call goes through here, so an adb that can't be launched (no SDK) becomes an ordinary failed result —
+    // reported by each command's parser like any other adb failure — instead of an exception escaping the service.
+    private async Task<ProcessResult> AdbAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken, string? standardInput = null)
+    {
+        try
+        {
+            return await _adb.RunAsync(arguments, standardInput, cancellationToken);
+        }
+        catch (ProcessLaunchException exception)
+        {
+            // The process runner has already logged the launch failure.
+            return new ProcessResult(-1, string.Empty, exception.Message);
+        }
+    }
 
     /// <inheritdoc />
     public async Task<WirelessConnectResult> ConnectAsync(string address, bool remember = true, CancellationToken cancellationToken = default)
@@ -49,18 +66,11 @@ internal sealed class WirelessAdbService : IWirelessAdbService
         var trimmed = address.Trim();
         if (trimmed.Length == 0)
         {
-            return new WirelessConnectResult(WirelessConnectOutcome.InvalidAddress, "Enter the device's address, e.g. 192.168.1.20:5555.");
+            return new WirelessConnectResult(WirelessConnectOutcome.InvalidAddress, $"Enter the device's address, e.g. 192.168.1.20{DefaultPortSuffix}.");
         }
 
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(ConnectTimeout);
-
-        ProcessResult result;
-        try
-        {
-            result = await AdbAsync(["connect", trimmed], timeout.Token);
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        var (completed, result) = await Timeouts.TryWithTimeoutAsync(token => AdbAsync(["connect", trimmed], token), ConnectTimeout, cancellationToken, _timeProvider);
+        if (!completed || result is null)
         {
             return new WirelessConnectResult(WirelessConnectOutcome.ConnectionFailed, $"Timed out connecting to {trimmed}.");
         }
@@ -103,7 +113,7 @@ internal sealed class WirelessAdbService : IWirelessAdbService
         }
 
         var address = ip + DefaultPortSuffix;
-        var tcpip = WirelessOutputParser.ParseTcpip(await AdbAsync(["-s", serial, "tcpip", "5555"], cancellationToken));
+        var tcpip = WirelessOutputParser.ParseTcpip(await AdbAsync(["-s", serial, "tcpip", $"{DefaultWirelessPort}"], cancellationToken));
         if (!tcpip.Success)
         {
             return new WirelessEnableResult(WirelessEnableOutcome.TcpipFailed, address, tcpip.Message);
@@ -156,15 +166,8 @@ internal sealed class WirelessAdbService : IWirelessAdbService
         }
 
         // `adb pair <address>` with no code prompts for it on stdin — which keeps the code off the command line.
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(PairTimeout);
-
-        ProcessResult result;
-        try
-        {
-            result = await _adb.RunAsync(["pair", address], $"{pairingCode}\n", timeout.Token);
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        var (completed, result) = await Timeouts.TryWithTimeoutAsync(token => AdbAsync(["pair", address], token, $"{pairingCode}\n"), PairTimeout, cancellationToken, _timeProvider);
+        if (!completed || result is null)
         {
             return new WirelessPairResult(false, false, $"Timed out pairing with {address}.");
         }
@@ -186,6 +189,30 @@ internal sealed class WirelessAdbService : IWirelessAdbService
         };
     }
 
+    // The shared "keep trying until it works or time runs out" loop: runs `attempt` every PollInterval as routine
+    // background work, at least once, until it succeeds or `timeout` passes. An attempt still in flight at the deadline is
+    // cancelled, so the whole wait is bounded by `timeout`.
+    private async Task<bool> PollUntilAsync(TimeSpan timeout, Func<CancellationToken, Task<bool>> attempt, CancellationToken cancellationToken)
+    {
+        using var scope = CommandLogScope.Background();
+
+        var (completed, _) = await Timeouts.TryWithTimeoutAsync(
+            async token =>
+            {
+                while (!await attempt(token))
+                {
+                    await Task.Delay(PollInterval, _timeProvider, token);
+                }
+
+                return true;
+            },
+            timeout,
+            cancellationToken,
+            _timeProvider);
+
+        return completed;
+    }
+
     /// <inheritdoc />
     public async Task<int> ReconnectSavedAsync(CancellationToken cancellationToken = default)
     {
@@ -205,33 +232,6 @@ internal sealed class WirelessAdbService : IWirelessAdbService
 
         _logger.LogInformation("Reconnected {Connected} of {Saved} saved wireless devices.", connected, addresses.Count);
         return connected;
-    }
-
-    // The shared "keep trying until it works or time runs out" loop: runs `attempt` every PollInterval as routine
-    // background work, at least once, until it succeeds or `timeout` passes. An attempt still in flight at the deadline is
-    // cancelled, so the whole wait is bounded by `timeout` (plus one interval).
-    private async Task<bool> PollUntilAsync(TimeSpan timeout, Func<CancellationToken, Task<bool>> attempt, CancellationToken cancellationToken)
-    {
-        using var scope = CommandLogScope.Background();
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        deadline.CancelAfter(timeout);
-
-        try
-        {
-            while (true)
-            {
-                if (await attempt(deadline.Token))
-                {
-                    return true;
-                }
-
-                await Task.Delay(PollInterval, deadline.Token);
-            }
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            return false;
-        }
     }
 
     private void Remember(string address)
