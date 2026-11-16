@@ -599,12 +599,30 @@ public class DevicesViewModelTests
         [Test]
         public async Task It_stops_the_emulator_by_serial_and_refreshes()
         {
+            EmulatorService
+                .Setup(service => service.StopAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new AvdOperationResult(true, null));
             var viewModel = await CreateLoadedAsync(Virtual("A", running: true));
 
             await viewModel.StopCommand.ExecuteAsync(Row(viewModel, "A"));
 
             EmulatorService.Verify(service => service.StopAsync("emulator-5554", It.IsAny<CancellationToken>()), Times.Once);
             EmulatorService.Verify(service => service.ListAsync(It.IsAny<CancellationToken>()), Times.Exactly(2));
+        }
+
+        [Test]
+        public async Task It_shows_adbs_error_when_the_stop_fails()
+        {
+            EmulatorService
+                .Setup(service => service.StopAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new AvdOperationResult(false, "error: device offline"));
+            var viewModel = await CreateLoadedAsync(Virtual("A", running: true));
+
+            await viewModel.StopCommand.ExecuteAsync(Row(viewModel, "A"));
+
+            Notifications.Verify(
+                notifications => notifications.Show("Couldn't stop emulator", "error: device offline", NotificationSeverity.Error, It.IsAny<TimeSpan?>(), It.IsAny<Action?>()),
+                Times.Once);
         }
 
         [Test]

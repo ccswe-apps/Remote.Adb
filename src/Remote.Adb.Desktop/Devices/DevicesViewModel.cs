@@ -311,7 +311,14 @@ public partial class DevicesViewModel : AutoRefreshingListViewModel
             return;
         }
 
-        await RunBusyRowActionAsync(device, "Couldn't stop emulator", () => _emulatorService.StopAsync(serial));
+        await RunBusyRowActionAsync(device, "Couldn't stop emulator", async () =>
+        {
+            var result = await _emulatorService.StopAsync(serial);
+            if (!result.Success)
+            {
+                NotifyError("Couldn't stop emulator", result.Error ?? $"adb couldn't stop {device.DisplayName}.");
+            }
+        });
     }
 
     // Opens the read-only details pane for an AVD row, loading its full config.ini via the store. The detail

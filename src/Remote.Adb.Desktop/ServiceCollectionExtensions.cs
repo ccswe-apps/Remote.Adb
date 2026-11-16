@@ -1,6 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Remote.Adb.Core;
 using Remote.Adb.Core.Emulators;
 using Remote.Adb.Desktop.Common;
@@ -27,7 +26,6 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddRemoteAdbDesktop(this IServiceCollection services)
     {
         services.AddRemoteAdbCore();
-        services.TryAddSingleton(TimeProvider.System);
 
         services.AddSingleton<IThemeApplier, ThemeApplier>();
         services.AddSingleton<IDensityApplier, DensityApplier>();
