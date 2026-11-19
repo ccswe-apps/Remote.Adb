@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   release:
-    uses: ccswe-apps/actions/.github/workflows/dotnet-release-app.yml@master
+    uses: ccswe-apps/actions/.github/workflows/dotnet-release-app.yml@v1
     with:
       projects: src/Remote.Adb.Desktop/Remote.Adb.Desktop.csproj src/Remote.Adb.Console/Remote.Adb.Console.csproj
       # Bundle the .NET runtime: users (Android developers) shouldn't need .NET installed.
